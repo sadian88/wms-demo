@@ -85,8 +85,11 @@ La aplicación estará disponible en `http://localhost:5173` (o el puerto indica
 
 ---
 
-## 📂 Documentación Adicional
+## 📂 Documentación del Proyecto
 
 En la carpeta [`docs/`](./docs) encontrarás:
-- [`PRODUCT.md`](./docs/PRODUCT.md): Especificación funcional detallada, modelo de datos y reglas de negocio.
+- [`AVANCE_PLAN_GENERAL.md`](./docs/AVANCE_PLAN_GENERAL.md): Estado de avance del plan general, matriz de módulos implementados y próximos pasos.
+- [`PRODUCT.md`](./docs/PRODUCT.md): Especificación funcional detallada, modelo de datos y reglas de negocio de cerámica.
 - [`DESIGN.md`](./docs/DESIGN.md): Sistema de diseño, paleta cromática de estados de stock y lineamientos de UX.
+- `Menu_Pantallas_y_Roles_WMS.xlsx`: Matriz original de pantallas y roles RBAC autorizados.
+- `Especificación Funcional Detallada – Plataforma WMS Inventario Despachos TMS Ligero.docx`: Documento de especificación funcional completa.
