@@ -90,12 +90,12 @@ export function WmsProvider({ children }: { children: React.ReactNode }) {
   )
   const [transfers, setTransfers] = useState<WmsTransfer[]>(INITIAL_TRANSFERS)
 
-  const topology = TOPOLOGY_SCENARIOS[scenario]
+  const topology = TOPOLOGY_SCENARIOS[scenario] || TOPOLOGY_SCENARIOS.CASE_3
   const almacenes = allAlmacenes.filter((a) =>
-    topology.almacenIds.includes(a.id)
+    (topology?.almacenIds ?? []).includes(a.id)
   )
   const warehouses = allWarehouses.filter((w) =>
-    topology.warehouseIds.includes(w.id)
+    (topology?.warehouseIds ?? []).includes(w.id)
   )
 
   const activeWarehouseIds = React.useMemo(() => {
@@ -126,9 +126,10 @@ export function WmsProvider({ children }: { children: React.ReactNode }) {
   }
 
   const setScenario = (sc: TopologyScenario) => {
-    setScenarioState(sc)
+    const targetSc = TOPOLOGY_SCENARIOS[sc] ? sc : 'CASE_3'
+    setScenarioState(targetSc)
     setWarehouseState('ALL')
-    toast.info(`Estructura activa: ${TOPOLOGY_SCENARIOS[sc].title}`)
+    toast.info(`Estructura activa: ${TOPOLOGY_SCENARIOS[targetSc].title}`)
   }
 
   const setWarehouse = (wh: string) => {

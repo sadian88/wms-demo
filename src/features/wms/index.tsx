@@ -2060,13 +2060,13 @@ export function WmsWorkspace({ screenSlug = '1-1' }: { screenSlug?: string }) {
                   </div>
                   <div className='grid grid-cols-1 gap-3'>
                     {Object.values(TOPOLOGY_SCENARIOS).map((sc) => {
-                      const isCurrent = scenario === sc.code
+                      const isCurrent = scenario === sc.id
                       return (
                         <button
-                          key={sc.code}
+                          key={sc.id}
                           type='button'
                           onClick={() => {
-                            setScenario(sc.code as TopologyScenario)
+                            setScenario(sc.id)
                             toast.success(`Estructura aplicada: ${sc.title}`)
                           }}
                           className={`flex flex-col items-start justify-between gap-2 rounded-lg border p-4 text-start transition-colors sm:flex-row sm:items-center ${

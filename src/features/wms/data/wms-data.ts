@@ -41,10 +41,13 @@ export type TopologyScenario = 'CASE_1' | 'CASE_2' | 'CASE_3'
 
 export interface WmsTopologyConfig {
   id: TopologyScenario
+  code: TopologyScenario
+  badge: string
   title: string
   subtitle: string
   hasHeadquarters: boolean
   headquartersName: string | null
+  headquartersRuc: string | null
   almacenIds: string[]
   warehouseIds: string[]
 }
@@ -438,31 +441,40 @@ export const WMS_MODULES: WmsModule[] = [
 export const TOPOLOGY_SCENARIOS: Record<TopologyScenario, WmsTopologyConfig> = {
   CASE_1: {
     id: 'CASE_1',
+    code: 'CASE_1',
+    badge: 'Caso 1 · 1 Almacén / 1 Bodega',
     title: 'Caso 1 · 1 Almacén con 1 Bodega (Sin Casa Matriz)',
     subtitle:
       'Operación unipunto: Un único Almacén con su Bodega principal atada por defecto, sin Casa Matriz.',
     hasHeadquarters: false,
     headquartersName: null,
+    headquartersRuc: null,
     almacenIds: ['ALM-QUI'],
     warehouseIds: ['BOD-CEN-01'],
   },
   CASE_2: {
     id: 'CASE_2',
+    code: 'CASE_2',
+    badge: 'Caso 2 · 1 Almacén (2 Bodegas)',
     title: 'Caso 2 · 1 Almacén con 2 Bodegas (Sin Casa Matriz)',
     subtitle:
       'Un único Almacén físico que incluye su Bodega atada por defecto más 1 Bodega adicional contratada, sin Casa Matriz.',
     hasHeadquarters: false,
     headquartersName: null,
+    headquartersRuc: null,
     almacenIds: ['ALM-QUI'],
     warehouseIds: ['BOD-CEN-01', 'BOD-MOR-04'],
   },
   CASE_3: {
     id: 'CASE_3',
+    code: 'CASE_3',
+    badge: 'Caso 3 · Casa Matriz (2 Almacenes)',
     title: 'Caso 3 · Casa Matriz con 2 Almacenes y 2 Bodegas c/u',
     subtitle:
       'Una Casa Matriz que agrupa 2 Almacenes físicos, donde cada Almacén tiene su Bodega atada por defecto + 1 Bodega adicional.',
     hasHeadquarters: true,
     headquartersName: 'Casa Matriz Ceramix Constructora',
+    headquartersRuc: 'RUT 76.890.123-K',
     almacenIds: ['ALM-QUI', 'ALM-REN'],
     warehouseIds: ['BOD-CEN-01', 'BOD-MOR-04', 'BOD-OBR-02', 'BOD-SHW-03'],
   },
