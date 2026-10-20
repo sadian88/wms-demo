@@ -1,6 +1,6 @@
-# WMS Demo · Plataforma de Gestión de Almacenes y Bodegas
+# WMS Esencial · Plataforma de Visibilidad y Control de Mercancía
 
-Demo interactiva de WMS para pymes del sector de **cerámica, porcelanatos, revestimientos y materiales de construcción**. Diseñada para resolver los problemas críticos del rubro: control estricto de **Tono y Calibre**, trazabilidad por lote/partida, y gestión jerárquica multi-almacén.
+Plataforma WMS enfocada en operaciones medianas de **materiales de construcción, cerámica, porcelanatos, adhesivos y revestimientos**. Diseñada con **7 módulos, 16 pantallas y 4 perfiles** para eliminar las zonas ciegas sobre la mercadería: qué está en existencia, por entregar (retiro en bodega), dañado, por reclamar, rezagado/por vencer y perdido.
 
 ---
 
@@ -35,15 +35,15 @@ flowchart TD
 
 ---
 
-## ✨ Características Principales
+## ✨ Características Principales (v2.0.0 · WMS Esencial)
 
-- **Control de Tono y Calibre**: Previene mezclas de partidas en picking y packing cerámico.
-- **8 Estados Físicos de Stock**: Disponible, Reservado, Cuarentena, Bloqueado, Merma, Tránsito interbodega, Muestra y Obra (sin doble conteo).
-- **Cálculo Riguroso de ATP**: Stock prometible descontando reservas y sumando órdenes de compra en tránsito.
-- **Putaway Dirigido**: Reglas de asignación inteligente a nivel de piso para pallets pesados de cerámica y morteros.
-- **Traspasos Inter-Bodegas**: Ciclo completo Solicitado → Aprobado → En tránsito → Recibido con control de guías electrónicas y diferencias de rotura.
-- **Matriz de Roles RBAC**: 6 perfiles operativos (Administrador, Jefe de Bodega, Recepción, Operario Picking, Control Calidad, Gerencia/Ventas).
-- **Selector Jerárquico en Header y Sidebar**: Cambio dinámico entre vista consolidada, almacén específico o bodega individual.
+- **Mapa de Mercancía (6 Bloques sin Doble Conteo)**: En existencia, Por entregar, Dañada, Por reclamar, Rezagada/por vencer y Perdida confirmada del mes.
+- **Control Simplificado por Partida (SKU + Bodega + Vencimiento FEFO)**: Sin complejidad de Tono/Calibre ni ubicaciones Pasillo-Rack-Bin.
+- **5 Estados Físicos Excluyentes**: Disponible, Reservado, Dañado, En reclamo y En tránsito.
+- **Salidas por Retiro en Bodega**: Carga manual o importación CSV con reserva FEFO automática, alerta de pedidos sin retirar (> 7 días) y mostrador de retiro total o parcial.
+- **Control de Pérdidas y Conteos Ciegos**: Registro de daños con evidencia, conteos ciegos y aprobación dual por umbral (**JB ≤ USD 300 · GER > USD 300**).
+- **Reclamos y Rezagados**: Apertura automática de reclamo a proveedor en recepción con diferencias, devoluciones de clientes y monitoreo de rezagados (≥ 60/90 días) y vencimientos (≤ 30 días).
+- **4 Perfiles RBAC**: Administrador (`ADM`), Jefe de Bodega (`JB`), Operario de Bodega (`OPE`) y Gerencia (`GER`).
 
 ---
 

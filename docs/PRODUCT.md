@@ -6,14 +6,14 @@ product
 
 ## Users
 
-Equipo operativo y administrativo de una **PyME comercializadora y distribuidora de productos para la construcción especializados en Cerámica, Porcelanato, Revestimientos e Insumos de Instalación** (adhesivos, fragües, niveladores, perfiles y guardapolvos). Incluye Jefes de Bodega (`JB`), Administradores (`ADM`), Compradores (`COM`), Coordinadores de Despacho a Obra/Transporte (`TRA`), Auditores (`AUD`), Inspectores de Calidad (`CAL`), Operarios de Patio/Picking (`REC`, `PCK`, `PKG`) y Gerencia (`GER`).
+Equipo operativo y administrativo de una **PyME mediana comercializadora y distribuidora de materiales de construcción** (cerámica, porcelanato, revestimientos, adhesivos, fragües y perfiles). Opera con **4 perfiles claros**: Administrador (`ADM`), Jefe de Bodega (`JB`), Operario de Bodega (`OPE`) y Gerencia (`GER`, solo lectura con aprobación de montos mayores).
 
 ## Product Purpose
 
-Plataforma integral de gestión de bodegas (WMS), control de inventario multi-bodega sin doble conteo, preparación de despachos y logística ligera de última milla (TMS) adaptada a las particularidades del rubro cerámico:
-- Control estricto por **Lote, Tono y Calibre** (evitando mezclar partidas distintas en un mismo pedido de obra o cliente).
-- Control de **vencimiento (FEFO)** en sacos de adhesivos, morteros y fragües sensibles a la humedad.
-- Gestión de **alta carga física (kg/pallet)**, fragilidad (mermas por rotura de palmetas/cajas despuntadas) y equivalencia comercial en **Cajas / m² / Pallets**.
+Plataforma esencial de gestión de bodegas (WMS) e inventario multi-bodega sin doble conteo, diseñada para eliminar el desconocimiento sobre dónde está la mercadería y responder en todo momento:
+- Qué hay **en existencia** (control por SKU, bodega y fecha de vencimiento FEFO).
+- Qué está **por entregar** mediante retiro en bodega (con carga manual o CSV y alerta de pedidos sin retirar por más de 7 días).
+- Qué está **dañado**, **por reclamar** (a proveedor o devoluciones de clientes), **rezagado** (≥ 60/90 días sin salida) o **perdido** (conteos ciegos y bajas/ajustes con aprobación dual en USD 300).
 
 ## Brand Personality
 

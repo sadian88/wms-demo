@@ -1,32 +1,25 @@
 import {
   Activity,
-  Award,
-  BarChart3,
+  AlertTriangle,
   Boxes,
   Building2,
-  ClipboardCheck,
-  Hand,
   PackageCheck,
   Settings2,
-  ShoppingCart,
-  Truck,
+  ShieldAlert,
+  ShoppingBag,
   Warehouse,
 } from 'lucide-react'
-import { WMS_MODULES } from '@/features/wms/data/wms-data'
+import { WMS_MODULES } from '@/features/wms/data/catalog'
 import { type SidebarData } from '../types'
 
 const MODULE_ICONS: Record<number, React.ElementType> = {
   1: Activity,
   2: Boxes,
   3: PackageCheck,
-  4: Hand,
-  5: Boxes,
-  6: Truck,
-  7: Award,
-  8: ClipboardCheck,
-  9: ShoppingCart,
-  10: BarChart3,
-  11: Settings2,
+  4: ShoppingBag,
+  5: ShieldAlert,
+  6: AlertTriangle,
+  7: Settings2,
 }
 
 export const sidebarData: SidebarData = {
@@ -59,8 +52,8 @@ export const sidebarData: SidebarData = {
   ],
   navGroups: [
     {
-      title: 'Operación Logística',
-      items: WMS_MODULES.filter((m) => m.id <= 6).map((mod) => ({
+      title: 'Operación',
+      items: WMS_MODULES.filter((m) => m.id <= 4).map((mod) => ({
         title: mod.name,
         icon: MODULE_ICONS[mod.id] || Boxes,
         items: mod.screens.map((scr) => ({
@@ -70,8 +63,8 @@ export const sidebarData: SidebarData = {
       })),
     },
     {
-      title: 'Control y Administración',
-      items: WMS_MODULES.filter((m) => m.id > 6).map((mod) => ({
+      title: 'Control',
+      items: WMS_MODULES.filter((m) => m.id > 4).map((mod) => ({
         title: mod.name,
         icon: MODULE_ICONS[mod.id] || Boxes,
         items: mod.screens.map((scr) => ({

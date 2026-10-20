@@ -1,23 +1,20 @@
 import {
   Activity,
-  Award,
-  BarChart3,
+  AlertTriangle,
   Boxes,
   Building2,
   ChevronsUpDown,
-  ClipboardCheck,
   Factory,
-  Hand,
   Lock,
   PackageCheck,
   Settings2,
-  ShoppingCart,
-  Truck,
+  ShieldAlert,
+  ShoppingBag,
   Warehouse,
 } from 'lucide-react'
 import { useLayout } from '@/context/layout-provider'
 import { useWms } from '@/context/wms-provider'
-import { WMS_MODULES } from '@/features/wms/data/wms-data'
+import { WMS_MODULES } from '@/features/wms/data/catalog'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -46,14 +43,10 @@ const MODULE_ICONS: Record<number, React.ElementType> = {
   1: Activity,
   2: Boxes,
   3: PackageCheck,
-  4: Hand,
-  5: Boxes,
-  6: Truck,
-  7: Award,
-  8: ClipboardCheck,
-  9: ShoppingCart,
-  10: BarChart3,
-  11: Settings2,
+  4: ShoppingBag,
+  5: ShieldAlert,
+  6: AlertTriangle,
+  7: Settings2,
 }
 
 export function AppSidebar() {
@@ -133,12 +126,12 @@ export function AppSidebar() {
   }
 
   const operationsGroup = buildNavGroup(
-    'Operación Logística',
-    WMS_MODULES.filter((m) => m.id <= 6)
+    'Operación',
+    WMS_MODULES.filter((m) => m.id <= 4)
   )
   const managementGroup = buildNavGroup(
-    'Control y Administración',
-    WMS_MODULES.filter((m) => m.id > 6)
+    'Control',
+    WMS_MODULES.filter((m) => m.id > 4)
   )
 
   return (

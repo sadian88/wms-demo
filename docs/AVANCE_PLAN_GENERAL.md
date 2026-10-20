@@ -1,95 +1,88 @@
-# Estado de Avance del Plan General · Plataforma WMS
+# Estado de Avance del Plan General · Plataforma WMS Esencial
 
-**Proyecto:** WMS e Inventario para Pymes de Cerámica, Porcelanato y Materiales de Construcción  
+**Proyecto:** WMS Esencial para Operaciones Medianas de Materiales de Construcción  
 **Fecha de corte:** Octubre 2026  
-**Versión de la demo:** 1.0.0  
+**Versión de la plataforma:** 2.0.0 · WMS Esencial  
 
 ---
 
-## 1. Visión y Alcance del Sistema
+## 1. Visión y Propósito del Sistema
 
-La plataforma WMS está diseñada para resolver los desafíos operativos críticos de distribuidores y comercializadores de cerámica, porcelanatos, revestimientos y adhesivos:
-1. **Control estricto de Tono y Calibre**: Impedir que un pedido despache cajas de tonalidades o calibres diferentes que arruinen la instalación en obra.
-2. **8 Estados físicos de inventario sin doble conteo**: Disponible, Reservado, Cuarentena, Bloqueado, Merma, Tránsito interbodega, Muestra y Obra.
-3. **Cálculo de ATP riguroso**: Prometible real = Stock Físico - Reservas Obra/Web + Órdenes de Compra en Tránsito.
-4. **Putaway Dirigido**: Ubicación a nivel piso para pallets pesados (>30 kg/caja) y segregación de adhesivos en ambientes secos (regla FEFO).
-5. **Topología Multi-Almacén y Multi-Bodega**: Adaptada a contratos SaaS de 1 o múltiples puntos de almacenamiento.
+El sistema está acotado para entregar visibilidad total sobre la mercadería de una operación mediana (7 módulos, 16 pantallas y 4 perfiles), respondiendo en tiempo real las 6 preguntas críticas del negocio sin zonas ciegas ni doble conteo:
+
+| Pregunta del negocio | Pantalla donde se responde |
+|---|---|
+| 1. ¿Qué tengo **en existencia**? | **2.1 Existencias** |
+| 2. ¿Qué está **por entregar** (vendido, pendiente de retiro en bodega)? | **4.1 Pedidos por entregar** · **4.2 Mostrador de retiro** |
+| 3. ¿Qué está **dañado**? | **5.1 Daños y mermas** |
+| 4. ¿Qué tengo **por reclamar** (a proveedor o devoluciones de clientes)? | **6.1 Reclamos y devoluciones** |
+| 5. ¿Qué está **rezagado o por vencer**? | **6.2 Rezagados y vencimientos** |
+| 6. ¿Qué se **perdió** (faltantes de conteo y bajas aprobadas)? | **5.2 Conteos** · **5.3 Ajustes** · **2.2 Movimientos** |
+
+La pantalla inicial (**1.1 Mapa de mercancía**) consolida estas 6 categorías con unidades, valor en USD y alertas accionables del día.
 
 ---
 
-## 2. Jerarquía Organizacional y Aprovisionamiento Comercial
+## 2. Reglas de Dominio y Umbrales Operativos
 
-El sistema implementa la jerarquía física y comercial acordada:
+1. **Unidad de control (Partida)**: Cada partida se define por **SKU + Bodega + Fecha de vencimiento** (opcional para productos que no vencen). No se utiliza control de Tono/Calibre.
+2. **5 Estados físicos sin doble conteo**: Cada unidad en bodega está en **un único estado** a la vez: `Disponible`, `Reservado`, `Dañado`, `En reclamo` o `En tránsito`. Las salidas definitivas (`Entrega`, `Baja`, `Devolución a proveedor`, `Ajuste de conteo negativo`) salen del inventario físico y quedan registradas en el kárdex inmutable.
+3. **Reserva FEFO automática**: Al cargar un pedido manual o por CSV, el sistema asigna primero la partida que vence antes (`allocateFefo`).
+4. **Umbrales de control y alertas**:
+   - **Aprobación dual por valor (`USD 300`)**: El Jefe de Bodega (`JB`) aprueba bajas y ajustes hasta **USD 300**; sobre **USD 300** aprueba Gerencia (`GER`). El Administrador (`ADM`) puede aprobar cualquier monto.
+   - **Mercadería rezagada**: `≥ 60 días` sin salidas (`Crítico ≥ 90 días`).
+   - **Mercadería por vencer**: `≤ 30 días` para su fecha de vencimiento.
+   - **Pedidos sin retirar**: `> 7 días` preparados sin que el cliente acuda a retirar en bodega.
 
-```mermaid
-flowchart TD
-    CM["Casa Matriz (Opcional · Consolidado Corporativo)"]
-    A1["Almacén 1 (ALM-QUI · CD Quilicura)"]
-    A2["Almacén 2 (ALM-REN · Almacén Renca)"]
-    B1["Bodega por defecto (Atada a ALM-QUI)"]
-    B2["Bodega adicional contratada (Morteros)"]
-    B3["Bodega por defecto (Atada a ALM-REN)"]
-    B4["Bodega adicional contratada (Showroom)"]
+---
 
-    CM -. "Caso 3 (Suscripción Enterprise)" .-> A1
-    CM -. "Caso 3 (Suscripción Enterprise)" .-> A2
-    A1 --> B1
-    A1 -. "Caso 2 y 3" .-> B2
-    A2 --> B3
-    A2 -. "Caso 3" .-> B4
-```
+## 3. Jerarquía Organizacional y Aprovisionamiento Comercial
 
-### Reglas de Aprovisionamiento Comercial
-- **Bodega Atada**: Todo Almacén físico provisionado incluye por defecto 1 Bodega operativa principal (`isDefaultTied: true`).
-- **Bloqueo de Creación en WMS**: Desde el WMS no se permite crear Casa Matriz, Almacenes ni Bodegas, ya que su tarificación y alta corresponden al sistema comercial externo de venta y suscripciones.
-- **Parámetros Operativos Editables**: Dentro del WMS, los usuarios autorizados (Administrador / Jefe de Bodega) pueden editar únicamente los parámetros operativos de cada entidad (horarios, hora de corte de camiones y jefe de bodega responsable).
-
-### Los 3 Casos de Uso Contratados Soportados
+Se mantienen los 3 casos de estructura multi-almacén y multi-bodega contratados por suscripción:
 1. **Caso 1 (`CASE_1`)**: Sin Casa Matriz · 1 Almacén (`ALM-QUI`) con 1 Bodega atada por defecto (`BOD-CEN-01`).
 2. **Caso 2 (`CASE_2`)**: Sin Casa Matriz · 1 Almacén (`ALM-QUI`) con 2 Bodegas (`BOD-CEN-01` atada por defecto + `BOD-MOR-04` adicional contratada).
 3. **Caso 3 (`CASE_3`)**: Con Casa Matriz (`Casa Matriz Ceramix Constructora`) · 2 Almacenes (`ALM-QUI` y `ALM-REN`), cada uno con su bodega atada por defecto + 1 bodega adicional (4 bodegas en total).
 
 ---
 
-## 3. Matriz de Avance por Módulo
+## 4. Matriz de Avance por Módulo (7 Módulos · 16 Pantallas)
 
 | Módulo | Nombre | Pantallas | Estado | Descripción Funcional |
 |---|---|---|---|---|
-| **M1** | **Torre de Control Operativa** | 1.1, 1.2, 1.3 | **100% Funcional** | Embudo de pedidos del día, KPIs operativos de descarga y merma, y monitor de alertas críticas en vivo. |
-| **M2** | **Almacenes, Bodegas y Ubicaciones** | 2.1, 2.2, 2.3, 2.4, 2.5 | **100% Funcional** | Consolidado multi-bodega con desglose de 8 estados, gestión de almacenes provisionados, mapa visual de 8 zonas funcionales, simulador de putaway dirigido con bullet charts mín/máx, y ciclo de traspasos inter-bodegas con guías electrónicas. |
-| **M3** | **Recepción e Inspección** | 3.1 – 3.5 | **Vista Operativa + RBAC** | Descarga de contenedores, pesaje, verificación de Tono/Calibre y entrada a cuarentena. |
-| **M4** | **Gestión de Stock y Trazabilidad** | 4.1 – 4.7 | **Vista Operativa + RBAC** | Ficha de lote cerámico, saldo de tono AIP, mermas por rotura y bloqueo preventivo. |
-| **M5** | **Demanda y Asignación de Stock** | 5.1 – 5.5 | **Vista Operativa + RBAC** | Reserva dura por proyecto/obra, backorder y cálculo de ATP prometible. |
-| **M6** | **Compras y Reabastecimiento** | 6.1 – 6.5 | **Vista Operativa + RBAC** | Sugerencia de compra por pallet cerrado y seguimiento de OC en tránsito de importación. |
-| **M7** | **Preparación y Despachos** | 7.1 – 7.6 | **Vista Operativa + RBAC** | Olas de picking por mismo tono/calibre, packing con zunchado y muelle de salida. |
-| **M8** | **Transporte y Última Milla (TMS)** | 8.1 – 8.7 | **Vista Operativa + RBAC** | Flota de camiones pluma/rampa, generación de guías fiscales y tracking a obra. |
-| **M9** | **Devoluciones de Clientes (RMA)** | 9.1 – 9.4 | **Vista Operativa + RBAC** | Recepción de cajas sobrantes de obra, verificación de tono original y reintegro al stock. |
-| **M10** | **Mermas, Rezagados y Calidad** | 10.1 – 10.7 | **Vista Operativa + RBAC** | Bajas de palmetas rotas, inventario cíclico por pasillo y control FEFO de químicos. |
-| **M11** | **Configuración y Contexto** | 11.1, 11.2, 11.3, 11.9 | **100% Funcional** | SideNav con simulación en vivo de los 3 casos de topología comercial, selección jerárquica de bodega activa, cambio de perfiles RBAC con candados visuales, y selector de fuentes nativas suaves. |
+| **M1** | **Panel** | 1.1 | **100% Funcional** | Mapa de mercancía con las 6 categorías en unidades y USD, barra de distribución física y panel "Requiere acción hoy". |
+| **M2** | **Inventario** | 2.1, 2.2, 2.3 | **100% Funcional** | Existencias por partida y estado con filtro FEFO, kárdex inmutable de movimientos y traspasos entre bodegas con guía. |
+| **M3** | **Entradas** | 3.1 | **100% Funcional** | Recepción contra OC o guía con vencimiento y apertura automática de reclamo a proveedor por unidades dañadas o faltantes. |
+| **M4** | **Salidas** | 4.1, 4.2 | **100% Funcional** | Pedidos por entregar (alta manual e importación CSV con reserva FEFO) y mostrador de retiro total o parcial en bodega. |
+| **M5** | **Control de pérdidas** | 5.1, 5.2, 5.3 | **100% Funcional** | Registro de daños con evidencia, programación y captura de conteos ciegos, y aprobación de bajas/ajustes según umbral USD 300. |
+| **M6** | **Reclamos y rezagados** | 6.1, 6.2 | **100% Funcional** | Reclamos a proveedor y devoluciones de clientes (nota de crédito, reintegro o daño) y monitor de rezagados (≥60d/90d) y vencimientos (≤30d). |
+| **M7** | **Configuración** | 7.1, 7.2, 7.3, 7.4 | **100% Funcional** | Estructura multi-bodega (Casos 1, 2 y 3), simulación de los 4 perfiles RBAC, catálogo de productos y apariencia. |
 
 ---
 
-## 4. Matriz de Roles Operativos (RBAC)
+## 5. Matriz de Perfiles Operativos (4 Roles RBAC)
 
-El menú y los permisos se adaptan automáticamente al perfil seleccionado:
-
-1. **Superusuario (`ALL`)**: Acceso total e irrestricto a los 11 módulos.
-2. **Administrador (`ADM`)**: Configuración general, catálogo, topología y usuarios.
-3. **Jefe de Bodega (`JB`)**: Supervisión operativa, aprobación de traspasos, olas de picking y ajustes.
-4. **Recepción (`REC`)**: Descarga, ingreso de OC, cuarentena inicial y conteos.
-5. **Operario Picking / Grúa (`PCK`)**: Preparación guiada por tono, putaway dirigido y reabastecimiento de bins.
-6. **Packing y Despacho (`PKG`)**: Zunchado, pesado, control de bultos y carga en andén.
-7. **Control de Calidad (`CAL`)**: Verificación técnica de tonalidad, calibración y reclamos RMA.
-8. **Transporte (`TRA`)**: Asignación de camiones, guías de despacho y monitoreo de entrega en obra.
-9. **Gerencia / Ventas (`GER`)**: Visión consolidada corporativa, KPIs y consulta de ATP prometible.
+| Pantalla | ADM (Administrador) | JB (Jefe de Bodega) | OPE (Operario) | GER (Gerencia) |
+|---|:-:|:-:|:-:|:-:|
+| **1.1 Mapa de mercancía** | ✅ | ✅ | — | 👁 Lectura |
+| **2.1 Existencias** | ✅ | ✅ | 👁 Lectura | 👁 Lectura |
+| **2.2 Movimientos** | ✅ | ✅ | — | 👁 Lectura |
+| **2.3 Traspasos** | ✅ | ✅ Aprueba | ✅ Despacha / Recibe | — |
+| **3.1 Recepción** | ✅ | ✅ | ✅ Recibe | — |
+| **4.1 Pedidos por entregar** | ✅ | ✅ | 👁 Lectura | 👁 Lectura |
+| **4.2 Mostrador de retiro** | ✅ | ✅ | ✅ Entrega | — |
+| **5.1 Daños y mermas** | ✅ | ✅ Aprueba ≤ USD 300 | ✅ Registra | ✅ Aprueba > USD 300 |
+| **5.2 Conteos** | ✅ | ✅ Programa | ✅ Conteo ciego | — |
+| **5.3 Ajustes y aprobaciones** | ✅ | ✅ Aprueba ≤ USD 300 | — | ✅ Aprueba > USD 300 |
+| **6.1 Reclamos y devoluciones** | ✅ | ✅ | — | 👁 Lectura |
+| **6.2 Rezagados y vencimientos** | ✅ | ✅ | — | 👁 Lectura |
+| **7.x Configuración** | ✅ (7.1–7.4) | 7.4 Apariencia | 7.4 Apariencia | 7.4 Apariencia |
 
 ---
 
-## 5. Próximos Pasos de la Hoja de Ruta
+## 6. Funcionalidades Excluidas por Alcance (Operación Mediana)
 
-1. **Fase 2 - Operación en Terminales Móviles**:
-   - Implementar interfaz táctil de alta densidad para terminales industriales RF (escaneo de código de barras GS1-128 / LPN).
-2. **Fase 3 - Conectores ERP y Facturación Electrónica**:
-   - Webhooks para sincronización bidireccional de pedidos de venta y emisión automática de Guías de Despacho del SII.
-3. **Fase 4 - Optimización de Rutas TMS**:
-   - Algoritmo de cubicaje y consolidación de carga en camiones pluma por peso por eje y restricciones comunales.
+- **Control de Tono y Calibre**: Eliminado para simplificar la operación a SKU + cantidad + fecha de vencimiento.
+- **Ubicaciones Pasillo-Rack-Nivel-Bin, Putaway dirigido y olas de picking**: No requeridos en bodegas medianas sin radiofrecuencia dedicada.
+- **Módulo de Compras y Reabastecimiento (M6 anterior)**: La gestión de órdenes de compra reside en el sistema administrativo/ERP; el WMS recibe contra documento en `3.1`.
+- **Transporte y Última Milla / TMS (M8 anterior)**: Las salidas operan mayoritariamente bajo modalidad de retiro en bodega (`4.1` y `4.2`).
+- **Conectores API de Ventas y Facturación SII**: Los pedidos ingresan manualmente o mediante importación CSV.

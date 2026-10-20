@@ -1,3 +1,12 @@
+## v2.0.0 · WMS Esencial (2026-10-20)
+
+### Refactor & Feat
+
+- **wms**: replanteamiento completo a versión esencial para operación mediana (7 módulos, 16 pantallas y 4 perfiles RBAC: `ADM`, `JB`, `OPE`, `GER`).
+- **domain**: motor puro `domain/inventory.ts` con conservación de unidades entre 5 estados (`disponible`, `reservado`, `danado`, `reclamo`, `transito`), asignación FEFO (`allocateFefo`) y cálculo de los 6 bloques de mercancía sin doble conteo (`computeBuckets`).
+- **salidas**: carga manual e importación CSV de pedidos con reserva FEFO y mostrador de retiro total o parcial en bodega.
+- **pérdidas y reclamos**: conteo ciego, aprobación dual por umbral (`USD 300`), apertura automática de reclamo en recepción y monitor de rezagados (`≥ 60/90d`) y vencimientos (`≤ 30d`).
+
 ## v2.2.1 (2025-11-06)
 
 ### Fix

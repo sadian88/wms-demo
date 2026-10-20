@@ -27,12 +27,11 @@ import {
 } from '@/components/ui/sheet'
 import { useSidebar } from './ui/sidebar'
 import { useWms } from '@/context/wms-provider'
+import { WMS_ROLES, type RoleCode } from '@/features/wms/data/catalog'
 import {
   TOPOLOGY_SCENARIOS,
-  WMS_ROLES,
-  type RoleCode,
   type TopologyScenario,
-} from '@/features/wms/data/wms-data'
+} from '@/features/wms/data/topology-data'
 import { Switch } from '@/components/ui/switch'
 
 export function ConfigDrawer() {
