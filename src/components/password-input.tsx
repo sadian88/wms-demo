@@ -37,7 +37,7 @@ export function PasswordInput({
       >
         {showPassword ? <Eye size={18} /> : <EyeOff size={18} />}
         <span className='sr-only'>
-          {showPassword ? 'Hide password' : 'Show password'}
+          {showPassword ? 'Ocultar clave' : 'Mostrar clave'}
         </span>
       </Button>
     </div>

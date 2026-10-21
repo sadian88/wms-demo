@@ -1,14 +1,7 @@
-import {
-  Calendar,
-  Clock,
-  ExternalLink,
-  History,
-  MapPin,
-  Ruler,
-  ShoppingBag,
-  Truck,
-} from 'lucide-react'
-import { Badge } from '@/components/ui/badge'
+import { ChevronRight } from 'lucide-react'
+import { cn } from '@/lib/utils'
+import { useWms } from '@/context/wms-provider'
+import { Button } from '@/components/ui/button'
 import {
   Sheet,
   SheetContent,
@@ -16,277 +9,350 @@ import {
   SheetHeader,
   SheetTitle,
 } from '@/components/ui/sheet'
-import { useWms } from '@/context/wms-provider'
+import { DefRow, StatusPill, TONE } from '@/features/wms/components/kit'
+import { findScreenBySlug } from '@/features/wms/data/catalog'
+import { TODAY_STR } from '@/features/wms/domain/clock'
 import {
-  EXPIRY_WARN_DAYS,
   daysBetween,
   formatQtyWithEquivalent,
   totalPhysicalPartida,
-  type Partida,
 } from '@/features/wms/domain/inventory'
-import { cop, nf } from '@/features/wms/screens/ui-helpers'
-import { CategoryAvatar, CategoryBadge } from './category-icons'
+import { cop, shortDate } from '@/features/wms/screens/ui-helpers'
+import {
+  MOVEMENT_ICON,
+  movementSigned,
+  movementTone,
+  qtyWithUnit,
+  skuUnit,
+} from './movement-meta'
 import { StockCompositionBar } from './stock-composition-bar'
-
-const TODAY_STR = '2026-10-20'
+import { STOCK_STATES, STOCK_STATE_META, partidaAlerts } from './stock-states'
 
 interface PartidaDetailDrawerProps {
-  partida: Partida | null
+  partidaId: string | null
   open: boolean
   onOpenChange: (open: boolean) => void
   onNavigateToOrder?: (orderId: string) => void
+  onNavigate?: (slug: string) => void
 }
 
 export function PartidaDetailDrawer({
-  partida,
+  partidaId,
   open,
   onOpenChange,
   onNavigateToOrder,
+  onNavigate,
 }: PartidaDetailDrawerProps) {
-  const { skus, movements, orders } = useWms()
+  const {
+    partidas,
+    skus,
+    movements,
+    orders,
+    warehouses,
+    role,
+    isReadOnly,
+    hasAccess,
+    canActOnScreen,
+  } = useWms()
 
+  const partida = partidas.find((p) => p.id === partidaId) ?? null
   if (!partida) return null
 
-  const skuItem = skus.find((s) => s.sku === partida.sku)
-  const totalPhysical = totalPhysicalPartida(partida)
-  const totalValue = totalPhysical * (skuItem?.unitCost ?? 0)
+  const sku = skus.find((s) => s.sku === partida.sku)
+  const unit = skuUnit(sku)
+  const showCost = role !== 'ASE'
+  const total = totalPhysicalPartida(partida)
+  const warehouseName =
+    warehouses.find((w) => w.id === partida.warehouse)?.name ??
+    partida.warehouse
 
-  // Movements for this specific partida
   const partidaMovements = movements
     .filter((m) => m.partidaId === partida.id)
     .sort((a, b) => b.ts.localeCompare(a.ts))
+  const lastMovement = partidaMovements[0]
 
-  // Orders that allocate stock from this partida
-  const allocatingOrders = orders.filter((o) =>
-    o.lines.some((l) =>
-      l.allocations.some((al) => al.partidaId === partida.id)
-    )
-  )
+  const reservingOrders = orders
+    .map((o) => ({
+      order: o,
+      qty: o.lines
+        .flatMap((l) => l.allocations)
+        .filter((a) => a.partidaId === partida.id)
+        .reduce((sum, a) => sum + a.qty, 0),
+    }))
+    .filter((x) => x.qty > 0)
 
-  const daysSinceReceived = daysBetween(partida.receivedAt, TODAY_STR)
-  const daysSinceLastOut = daysBetween(partida.lastOutAt, TODAY_STR)
-  const daysToExpiry = partida.expiry
-    ? daysBetween(TODAY_STR, partida.expiry)
-    : null
+  const alerts = partidaAlerts(partida)
+  const daysIdle = daysBetween(partida.lastOutAt, TODAY_STR)
+  const daysReceived = daysBetween(partida.receivedAt, TODAY_STR)
+  const conv = sku?.conversions?.[0]
 
-  const isExpiringSoon =
-    daysToExpiry !== null && daysToExpiry <= EXPIRY_WARN_DAYS
-  const isStale = daysSinceLastOut >= 60
+  const canGo = (slug: string) => hasAccess(findScreenBySlug(slug).scr)
+  const canAct = (slug: string) =>
+    !isReadOnly && canActOnScreen(findScreenBySlug(slug).scr)
+
+  const actions: { slug: string; label: string }[] = []
+  if (canAct('5-1') && partida.qty.disponible > 0) {
+    actions.push({ slug: '5-1', label: 'Reportar daño' })
+  }
+  if (canAct('5-2')) actions.push({ slug: '5-2', label: 'Programar conteo' })
+  if (canGo('6-2') && alerts.some((a) => a.key !== 'problem')) {
+    actions.push({ slug: '6-2', label: 'Ver vencimientos y rezagados' })
+  }
+
+  const go = (slug: string) => {
+    onOpenChange(false)
+    onNavigate?.(slug)
+  }
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className='w-full sm:max-w-md overflow-y-auto p-0'>
-        <div className='p-6 space-y-6'>
-          {/* Header */}
-          <SheetHeader className='p-0 space-y-2'>
-            <div className='flex items-start gap-3'>
-              <CategoryAvatar
-                category={skuItem?.category ?? 'Otros'}
-                size='lg'
-              />
-              <div className='flex-1 min-w-0'>
-                <div className='flex items-center gap-2'>
-                  <span className='font-mono text-xs font-bold text-primary'>
-                    {partida.id}
-                  </span>
-                  <CategoryBadge
-                    category={skuItem?.category ?? 'Otros'}
-                    className='text-[10px] py-0'
-                  />
-                </div>
-                <SheetTitle className='text-base font-semibold leading-snug line-clamp-2 mt-1'>
-                  {skuItem?.name ?? partida.sku}
-                </SheetTitle>
-                <SheetDescription className='text-xs font-mono text-muted-foreground mt-0.5'>
-                  SKU: {partida.sku}
-                </SheetDescription>
-              </div>
-            </div>
-          </SheetHeader>
-
-          {/* Quick Location, Supplier & Reception Tag */}
-          <div className='flex flex-wrap items-center justify-between gap-2 rounded-lg border bg-muted/40 p-3 text-xs'>
-            <div className='flex items-center gap-1.5'>
-              <MapPin className='size-3.5 text-muted-foreground' />
-              <span>
-                Bodega: <strong>{partida.warehouse}</strong>
-              </span>
-            </div>
-            <div className='flex items-center gap-1.5'>
-              <Calendar className='size-3.5 text-muted-foreground' />
-              <span>
-                Ingreso: <strong>hace {daysSinceReceived}d</strong>
-              </span>
-            </div>
-            <div className='flex items-center gap-1.5'>
-              <Truck className='size-3.5 text-muted-foreground' />
-              <span className='truncate max-w-[130px]'>
-                {partida.supplier}
-              </span>
-            </div>
-          </div>
-
-          {/* Visual Stock Composition Card */}
-          <div className='space-y-3 rounded-lg border bg-card p-4'>
-            <div className='flex items-center justify-between'>
-              <span className='text-xs font-semibold'>
-                Desglose Físico de Stock
-              </span>
-              <div className='text-end'>
-                <span className='text-sm font-bold tabular-nums'>
-                  {formatQtyWithEquivalent(totalPhysical, skuItem)}
-                </span>
-                <span className='block text-[10px] text-muted-foreground tabular-nums'>
-                  {cop(totalValue)}
-                </span>
-              </div>
-            </div>
-
-            {skuItem?.conversions?.[0] && (
-              <div className='flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-indigo-50 dark:bg-indigo-950/30 border border-indigo-200 dark:border-indigo-800 text-[11px] text-indigo-700 dark:text-indigo-300 font-mono'>
-                <Ruler className='size-3.5 text-indigo-600 shrink-0' />
-                <span className='truncate'>
-                  1 {skuItem.unitMeasure} = {skuItem.conversions[0].factor} {skuItem.conversions[0].targetUnit}
-                  {skuItem.conversions[0].description ? ` · ${skuItem.conversions[0].description}` : ''}
-                </span>
-              </div>
-            )}
-
-            <StockCompositionBar
-              qty={partida.qty}
-              totalPhysical={totalPhysical}
-              height='md'
-              showLabels
-            />
-          </div>
-
-          {/* Lifespan & Rotation Gauge */}
-          <div className='grid grid-cols-2 gap-2 text-xs'>
-            <div className='rounded-lg border p-3 bg-card'>
-              <div className='flex items-center gap-1.5 text-muted-foreground'>
-                <Clock className='size-3.5' />
-                <span>Rotación</span>
-              </div>
-              <div className='mt-1 text-base font-bold tabular-nums'>
-                {daysSinceLastOut} días
-              </div>
-              <span
-                className={`text-[10px] ${
-                  isStale ? 'text-amber-600 font-semibold' : 'text-muted-foreground'
-                }`}
-              >
-                {isStale ? 'Partida rezagada (≥60d)' : 'Rotación activa'}
-              </span>
-            </div>
-
-            <div className='rounded-lg border p-3 bg-card'>
-              <div className='flex items-center gap-1.5 text-muted-foreground'>
-                <Calendar className='size-3.5' />
-                <span>Vencimiento FEFO</span>
-              </div>
-              <div className='mt-1 text-base font-bold tabular-nums'>
-                {partida.expiry ? `${daysToExpiry} días` : 'No aplica'}
-              </div>
-              <span
-                className={`text-[10px] ${
-                  isExpiringSoon
-                    ? 'text-rose-600 font-semibold'
-                    : 'text-muted-foreground'
-                }`}
-              >
-                {partida.expiry
-                  ? isExpiringSoon
-                    ? `¡Por vencer! (${partida.expiry})`
-                    : `Vence ${partida.expiry}`
-                  : 'Sin fecha de caducidad'}
-              </span>
-            </div>
-          </div>
-
-          {/* Reserved Orders */}
-          <div className='space-y-2'>
-            <div className='flex items-center justify-between'>
-              <div className='flex items-center gap-1.5 text-xs font-semibold'>
-                <ShoppingBag className='size-3.5 text-primary' />
-                <span>Pedidos asignados ({allocatingOrders.length})</span>
-              </div>
-              <span className='text-[10px] text-muted-foreground'>
-                Reserva activa
-              </span>
-            </div>
-
-            {allocatingOrders.length === 0 ? (
-              <p className='text-xs text-muted-foreground italic rounded-md border border-dashed p-3 text-center'>
-                Sin pedidos reservados en esta partida.
-              </p>
-            ) : (
-              <div className='space-y-1.5'>
-                {allocatingOrders.map((ord) => {
-                  const allocQty = ord.lines
-                    .flatMap((l) => l.allocations)
-                    .filter((a) => a.partidaId === partida.id)
-                    .reduce((sum, a) => sum + a.qty, 0)
-
-                  return (
-                    <div
-                      key={ord.id}
-                      className='flex items-center justify-between rounded-lg border bg-background p-2.5 text-xs'
-                    >
-                      <div>
-                        <div className='font-semibold'>{ord.id}</div>
-                        <div className='text-[11px] text-muted-foreground truncate max-w-[200px]'>
-                          {ord.customer}
-                        </div>
-                      </div>
-                      <div className='flex items-center gap-2'>
-                        <Badge variant='secondary' className='text-[10px]'>
-                          {allocQty} uds
-                        </Badge>
-                        {onNavigateToOrder && (
-                          <button
-                            type='button'
-                            onClick={() => onNavigateToOrder(ord.id)}
-                            className='text-primary hover:text-primary/80'
-                            title='Ver pedido'
-                          >
-                            <ExternalLink className='size-3.5' />
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
-            )}
-          </div>
-
-          {/* Kárdex timeline for this partida */}
-          <div className='space-y-2.5'>
-            <div className='flex items-center gap-1.5 text-xs font-semibold'>
-              <History className='size-3.5 text-primary' />
-              <span>Historial de movimientos ({partidaMovements.length})</span>
-            </div>
-
-            <div className='relative space-y-3 pl-4 border-l'>
-              {partidaMovements.map((m) => (
-                <div key={m.id} className='relative pl-3 text-xs'>
-                  <div className='absolute -left-[21px] top-1 size-2 rounded-full bg-primary ring-2 ring-background' />
-                  <div className='flex items-center justify-between gap-2'>
-                    <span className='font-semibold'>{m.type}</span>
-                    <span className='font-bold tabular-nums'>
-                      {m.qty > 0 ? `+${nf(m.qty)}` : nf(m.qty)} uds
-                    </span>
-                  </div>
-                  <div className='text-[11px] text-muted-foreground'>
-                    Ref: {m.ref} · {m.user}
-                  </div>
-                  <div className='text-[10px] text-muted-foreground mt-0.5'>
-                    {m.ts}
-                  </div>
-                </div>
+      <SheetContent className='w-full gap-0 overflow-y-auto p-0 sm:max-w-md'>
+        <SheetHeader className='gap-1 border-b p-5 pe-12'>
+          <SheetTitle className='text-lg leading-snug'>
+            {sku?.name ?? partida.sku}
+          </SheetTitle>
+          <SheetDescription>
+            {partida.sku} · Partida {partida.id}
+          </SheetDescription>
+          {alerts.length > 0 && (
+            <div className='flex flex-wrap gap-1.5 pt-1.5'>
+              {alerts.map((a) => (
+                <StatusPill key={a.key} tone={a.tone}>
+                  {a.label}
+                </StatusPill>
               ))}
             </div>
+          )}
+        </SheetHeader>
+
+        <div className='space-y-6 p-5'>
+          {/* Desglose de los 5 estados */}
+          <section aria-labelledby='drawer-stock'>
+            <div className='flex items-baseline justify-between gap-3'>
+              <h3 id='drawer-stock' className='text-base font-semibold'>
+                Stock en esta partida
+              </h3>
+              <span className='text-sm font-medium tabular-nums'>
+                {formatQtyWithEquivalent(total, sku)}
+              </span>
+            </div>
+            <StockCompositionBar
+              qty={partida.qty}
+              totalPhysical={total}
+              height='md'
+              className='mt-3'
+            />
+            <ul className='mt-3 divide-y'>
+              {STOCK_STATES.map((state) => {
+                const value = partida.qty[state]
+                return (
+                  <li
+                    key={state}
+                    className={cn(
+                      'flex items-center gap-2.5 py-2 text-sm',
+                      value === 0 && 'text-muted-foreground'
+                    )}
+                  >
+                    <span
+                      className={cn(
+                        'size-2.5 shrink-0 rounded-full',
+                        STOCK_STATE_META[state].dot
+                      )}
+                    />
+                    <span className='flex-1'>
+                      {STOCK_STATE_META[state].label}
+                    </span>
+                    <span className='font-medium tabular-nums'>
+                      {value === 0 ? '—' : qtyWithUnit(value, unit)}
+                    </span>
+                  </li>
+                )
+              })}
+            </ul>
+            {showCost && sku && (
+              <p className='mt-2 text-sm text-muted-foreground'>
+                Valor a costo:{' '}
+                <span className='font-medium text-foreground tabular-nums'>
+                  {cop(total * sku.unitCost)}
+                </span>
+              </p>
+            )}
+          </section>
+
+          {/* Datos de la partida */}
+          <section aria-labelledby='drawer-data'>
+            <h3 id='drawer-data' className='text-base font-semibold'>
+              Datos de la partida
+            </h3>
+            <dl className='mt-1 divide-y'>
+              <DefRow label='Bodega'>{warehouseName}</DefRow>
+              <DefRow label='Proveedor'>{partida.supplier}</DefRow>
+              <DefRow label='Ingreso'>
+                {shortDate(partida.receivedAt)}
+                <span className='font-normal text-muted-foreground'>
+                  {' '}
+                  · hace {daysReceived} d
+                </span>
+              </DefRow>
+              <DefRow label='Vencimiento'>
+                {partida.expiry ? (
+                  <>
+                    {shortDate(partida.expiry)}
+                    <span
+                      className={cn(
+                        'font-normal',
+                        alerts.some((a) => a.key === 'expiry')
+                          ? TONE.warning.text
+                          : 'text-muted-foreground'
+                      )}
+                    >
+                      {' '}
+                      · {daysBetween(TODAY_STR, partida.expiry)} d
+                    </span>
+                  </>
+                ) : (
+                  'No vence'
+                )}
+              </DefRow>
+              <DefRow label='Última salida'>
+                {shortDate(partida.lastOutAt)}
+                <span className='font-normal text-muted-foreground'>
+                  {' '}
+                  · hace {daysIdle} d
+                </span>
+              </DefRow>
+              {lastMovement && (
+                <DefRow label='Último movimiento'>
+                  {lastMovement.type}
+                  <span className='font-normal text-muted-foreground'>
+                    {' '}
+                    · {shortDate(lastMovement.ts)} · {lastMovement.user}
+                  </span>
+                </DefRow>
+              )}
+              {conv && (
+                <DefRow label='Equivalencia'>
+                  1 {unit.toLowerCase()} = {conv.factor.toLocaleString('es-CO')}{' '}
+                  {conv.targetUnit}
+                </DefRow>
+              )}
+            </dl>
+          </section>
+
+          {/* Detalle bajo demanda */}
+          <div className='divide-y rounded-xl border'>
+            <details className='group'>
+              <summary className='flex min-h-11 cursor-pointer list-none items-center justify-between gap-2 px-4 text-sm font-medium'>
+                <span>
+                  Pedidos que reservan esta partida ({reservingOrders.length})
+                </span>
+                <ChevronRight className='size-4 text-muted-foreground transition-transform group-open:rotate-90' />
+              </summary>
+              <div className='border-t px-4 pb-1'>
+                {reservingOrders.length === 0 ? (
+                  <p className='py-3 text-sm text-muted-foreground'>
+                    Ningún pedido tiene reservada mercancía de esta partida.
+                  </p>
+                ) : (
+                  <ul className='divide-y'>
+                    {reservingOrders.map(({ order, qty }) => (
+                      <li
+                        key={order.id}
+                        className='flex items-center gap-3 py-2.5 text-sm'
+                      >
+                        <div className='min-w-0 flex-1'>
+                          <div className='font-medium'>{order.id}</div>
+                          <div className='truncate text-muted-foreground'>
+                            {order.customer}
+                          </div>
+                        </div>
+                        <span className='tabular-nums'>
+                          {qtyWithUnit(qty, unit)}
+                        </span>
+                        {onNavigateToOrder && canGo('4-1') && (
+                          <Button
+                            type='button'
+                            variant='ghost'
+                            size='sm'
+                            onClick={() => {
+                              onOpenChange(false)
+                              onNavigateToOrder(order.id)
+                            }}
+                          >
+                            Ver
+                          </Button>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            </details>
+
+            <details className='group'>
+              <summary className='flex min-h-11 cursor-pointer list-none items-center justify-between gap-2 px-4 text-sm font-medium'>
+                <span>
+                  Movimientos de la partida ({partidaMovements.length})
+                </span>
+                <ChevronRight className='size-4 text-muted-foreground transition-transform group-open:rotate-90' />
+              </summary>
+              <div className='border-t px-4 pb-1'>
+                {partidaMovements.length === 0 ? (
+                  <p className='py-3 text-sm text-muted-foreground'>
+                    Esta partida aún no tiene movimientos registrados.
+                  </p>
+                ) : (
+                  <ul className='divide-y'>
+                    {partidaMovements.slice(0, 12).map((m) => {
+                      const Icon = MOVEMENT_ICON[m.type]
+                      const tone = movementTone(m)
+                      return (
+                        <li
+                          key={m.id}
+                          className='flex items-center gap-3 py-2.5'
+                        >
+                          <Icon
+                            className={cn('size-4 shrink-0', TONE[tone].text)}
+                            aria-hidden
+                          />
+                          <div className='min-w-0 flex-1 text-sm'>
+                            <div className='font-medium'>{m.type}</div>
+                            <div className='truncate text-muted-foreground'>
+                              {m.user} · {shortDate(m.ts)} {m.ts.slice(11)}
+                            </div>
+                          </div>
+                          <span
+                            className={cn(
+                              'text-sm font-medium tabular-nums',
+                              TONE[tone].text
+                            )}
+                          >
+                            {movementSigned(m)}
+                          </span>
+                        </li>
+                      )
+                    })}
+                  </ul>
+                )}
+              </div>
+            </details>
           </div>
+
+          {actions.length > 0 && onNavigate && (
+            <div className='flex flex-col gap-2 sm:flex-row sm:flex-wrap'>
+              {actions.map((a) => (
+                <Button
+                  key={a.slug}
+                  type='button'
+                  variant='outline'
+                  className='h-11 sm:h-9'
+                  onClick={() => go(a.slug)}
+                >
+                  {a.label}
+                </Button>
+              ))}
+            </div>
+          )}
         </div>
       </SheetContent>
     </Sheet>

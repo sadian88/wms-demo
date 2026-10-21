@@ -1,8 +1,9 @@
 import React from 'react'
 import { useNavigate } from '@tanstack/react-router'
-import { ArrowRight, ChevronRight, Laptop, Moon, Sun } from 'lucide-react'
+import { ArrowRight, Laptop, Moon, Sun } from 'lucide-react'
 import { useSearch } from '@/context/search-provider'
 import { useTheme } from '@/context/theme-provider'
+import { useWms } from '@/context/wms-provider'
 import {
   CommandDialog,
   CommandEmpty,
@@ -12,13 +13,14 @@ import {
   CommandList,
   CommandSeparator,
 } from '@/components/ui/command'
-import { sidebarData } from './layout/data/sidebar-data'
+import { navSections, screenPath } from '@/features/wms/data/navigation'
 import { ScrollArea } from './ui/scroll-area'
 
 export function CommandMenu() {
   const navigate = useNavigate()
   const { setTheme } = useTheme()
   const { open, setOpen } = useSearch()
+  const { hasAccess } = useWms()
 
   const runCommand = React.useCallback(
     (command: () => unknown) => {
@@ -30,58 +32,40 @@ export function CommandMenu() {
 
   return (
     <CommandDialog modal open={open} onOpenChange={setOpen}>
-      <CommandInput placeholder='Type a command or search...' />
+      <CommandInput placeholder='Buscar una pantalla…' />
       <CommandList>
         <ScrollArea type='hover' className='h-72 pe-1'>
-          <CommandEmpty>No results found.</CommandEmpty>
-          {sidebarData.navGroups.map((group) => (
-            <CommandGroup key={group.title} heading={group.title}>
-              {group.items.map((navItem, i) => {
-                if (navItem.url)
-                  return (
-                    <CommandItem
-                      key={`${navItem.url}-${i}`}
-                      value={navItem.title}
-                      onSelect={() => {
-                        runCommand(() => navigate({ to: navItem.url }))
-                      }}
-                    >
-                      <div className='flex size-4 items-center justify-center'>
-                        <ArrowRight className='size-2 text-muted-foreground/80' />
-                      </div>
-                      {navItem.title}
-                    </CommandItem>
-                  )
-
-                return navItem.items?.map((subItem, i) => (
-                  <CommandItem
-                    key={`${navItem.title}-${subItem.url}-${i}`}
-                    value={`${navItem.title}-${subItem.url}`}
-                    onSelect={() => {
-                      runCommand(() => navigate({ to: subItem.url }))
-                    }}
-                  >
-                    <div className='flex size-4 items-center justify-center'>
-                      <ArrowRight className='size-2 text-muted-foreground/80' />
-                    </div>
-                    {navItem.title} <ChevronRight /> {subItem.title}
-                  </CommandItem>
-                ))
-              })}
+          <CommandEmpty>No encontramos esa pantalla.</CommandEmpty>
+          {navSections(hasAccess).map((section) => (
+            <CommandGroup key={section.title} heading={section.title}>
+              {section.screens.map((scr) => (
+                <CommandItem
+                  key={scr.slug}
+                  value={`${scr.name} ${scr.desc}`}
+                  onSelect={() =>
+                    runCommand(() => navigate({ to: screenPath(scr.slug) }))
+                  }
+                >
+                  <div className='flex size-4 items-center justify-center'>
+                    <ArrowRight className='size-3 text-muted-foreground/80' />
+                  </div>
+                  {scr.name}
+                </CommandItem>
+              ))}
             </CommandGroup>
           ))}
           <CommandSeparator />
-          <CommandGroup heading='Theme'>
+          <CommandGroup heading='Tema'>
             <CommandItem onSelect={() => runCommand(() => setTheme('light'))}>
-              <Sun /> <span>Light</span>
+              <Sun /> <span>Claro</span>
             </CommandItem>
             <CommandItem onSelect={() => runCommand(() => setTheme('dark'))}>
               <Moon className='scale-90' />
-              <span>Dark</span>
+              <span>Oscuro</span>
             </CommandItem>
             <CommandItem onSelect={() => runCommand(() => setTheme('system'))}>
               <Laptop />
-              <span>System</span>
+              <span>Según el sistema</span>
             </CommandItem>
           </CommandGroup>
         </ScrollArea>

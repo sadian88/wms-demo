@@ -1,3 +1,27 @@
+## v3.0.0 · Control de entregas con factura (2026-10-20)
+
+### Feat
+
+- **entregas**: regla «sin factura vigente no hay entrega». La entrega en bodega se valida con el número de factura, admite entregas parciales con saldo y registra quién recibe, quién entrega, la remisión y una foto opcional.
+- **facturas**: facturación en caja (número + medio de pago), anulación con motivo y **carga del CSV de Siigo** con detección de columnas y separador, revisión previa, conversión de m² a cajas, control de duplicados y validación de stock.
+- **conciliación**: nueva pantalla 4.3 con facturado, entregado y pendiente por periodo, alertas (factura anulada con mercancía entregada, facturas sin retirar, pedidos sin factura) y descarga en CSV.
+- **recepción y daños**: flujo guiado en 3 pasos con **fotos desde el celular** (obligatorias cuando hay roturas) y reclamo automático al proveedor.
+- **usuarios**: ingreso con correo y clave, usuarios reales con alcance por bodega, perfiles nuevos **Asesor comercial** y **Cajero / Facturación**, y trazabilidad a nombre de la persona.
+- **catálogo**: SKU automático, precio de venta, margen y descuento máximo; los totales de pedidos y facturas ahora usan el precio de venta y no el costo.
+- **configuración**: usuarios (crear, editar, activar), prefijos de factura, puntos de venta y restablecimiento de datos de ejemplo.
+- **persistencia**: los datos de la demostración se guardan en el navegador.
+
+### Refactor
+
+- **ui**: rediseño completo para reducir la saturación: una banda de resumen y una lista por pantalla, máximo 5 columnas, texto base de 14 px, móvil primero, tema cobalto con color solo para estados.
+- **nav**: menú reorganizado por momento de uso (Día a día, Inventario, Control, Configuración).
+- **i18n**: datos y textos en español de Colombia (NIT, remisión, COP); se retiran referencias a Chile (RUT, SII, direcciones).
+
+### Fix
+
+- los totales de factura y de pedidos se calculaban con el costo del producto.
+- las pruebas del buscador, el cierre de sesión y la apariencia estaban desactualizadas respecto a la interfaz.
+
 ## v2.0.0 · WMS Esencial (2026-10-20)
 
 ### Refactor & Feat

@@ -2,8 +2,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { render, type RenderResult } from 'vitest-browser-react'
 import { userEvent } from 'vitest/browser'
 import { SearchProvider } from '@/context/search-provider'
+import { WmsProvider } from '@/context/wms-provider'
 
-const COMMAND_MENU_PLACEHOLDER = 'Type a command or search...'
+const COMMAND_MENU_PLACEHOLDER = 'Buscar una pantalla…'
 
 const mocks = vi.hoisted(() => ({
   navigate: vi.fn(),
@@ -25,7 +26,11 @@ vi.mock('@/context/theme-provider', () => ({
 type ShortcutModifier = 'Control' | 'Meta'
 
 async function renderWithSearchProvider() {
-  return await render(<SearchProvider>{null}</SearchProvider>)
+  return await render(
+    <WmsProvider>
+      <SearchProvider>{null}</SearchProvider>
+    </WmsProvider>
+  )
 }
 
 /**
@@ -69,11 +74,15 @@ describe('SearchProvider and CommandMenu', () => {
     await expect
       .element(getByPlaceholder(COMMAND_MENU_PLACEHOLDER))
       .toBeInTheDocument()
-    await expect.element(getByText('Theme')).toBeInTheDocument()
-    await expect.element(getByText('Light')).toBeInTheDocument()
-    await expect.element(getByText('Dark')).toBeInTheDocument()
-    await expect.element(getByText('System')).toBeInTheDocument()
-    await expect.element(getByText('Dashboard')).toBeInTheDocument()
+    await expect.element(getByText('Tema', { exact: true })).toBeInTheDocument()
+    await expect
+      .element(getByText('Claro', { exact: true }))
+      .toBeInTheDocument()
+    await expect
+      .element(getByText('Oscuro', { exact: true }))
+      .toBeInTheDocument()
+    await expect.element(getByText('Según el sistema')).toBeInTheDocument()
+    await expect.element(getByText('Resumen del día')).toBeInTheDocument()
   })
 
   it('does not show the dialog content when search is closed', async () => {
@@ -109,23 +118,23 @@ describe('SearchProvider and CommandMenu', () => {
 
     await openCommandPalette(screen)
 
-    await userEvent.click(screen.getByText('Tasks'))
+    await userEvent.click(screen.getByText('Resumen del día'))
 
-    expect(mocks.navigate).toHaveBeenCalledWith({ to: '/tasks' })
+    expect(mocks.navigate).toHaveBeenCalledWith({ to: '/' })
     await expect
       .element(screen.getByPlaceholder(COMMAND_MENU_PLACEHOLDER))
       .not.toBeInTheDocument()
   })
 
-  it('navigates for nested sidebar items (group with sub-items)', async () => {
+  it('navigates to a WMS screen route', async () => {
     const screen = await renderWithSearchProvider()
     const { getByPlaceholder, getByRole } = screen
 
     await openCommandPalette(screen)
 
-    await userEvent.click(getByRole('option', { name: 'Settings Account' }))
+    await userEvent.click(getByRole('option', { name: 'Existencias' }))
 
-    expect(mocks.navigate).toHaveBeenCalledWith({ to: '/settings/account' })
+    expect(mocks.navigate).toHaveBeenCalledWith({ to: '/wms/2-1' })
     await expect
       .element(getByPlaceholder(COMMAND_MENU_PLACEHOLDER))
       .not.toBeInTheDocument()
@@ -136,7 +145,7 @@ describe('SearchProvider and CommandMenu', () => {
 
     await openCommandPalette(screen)
 
-    await userEvent.click(screen.getByText('Dark'))
+    await userEvent.click(screen.getByText('Oscuro', { exact: true }))
 
     expect(mocks.setTheme).toHaveBeenCalledWith('dark')
     await expect
@@ -155,7 +164,7 @@ describe('SearchProvider and CommandMenu', () => {
     )
 
     await expect
-      .element(screen.getByText('No results found.'))
+      .element(screen.getByText('No encontramos esa pantalla.'))
       .toBeInTheDocument()
   })
 })

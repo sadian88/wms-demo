@@ -1,10 +1,23 @@
-import React, { createContext, useContext, useMemo, useState } from 'react'
+import React, {
+  createContext,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
 import { toast } from 'sonner'
+import { getSessionUserId, setSessionUserId } from '@/lib/session'
 import {
   WMS_ROLES,
   type RoleCode,
   type WmsScreen,
 } from '@/features/wms/data/catalog'
+import {
+  clearPersisted,
+  loadPersisted,
+  savePersisted,
+} from '@/features/wms/data/persistence'
 import {
   INITIAL_ADJUSTMENTS,
   INITIAL_CLAIMS,
@@ -27,28 +40,71 @@ import {
   type WmsWarehouse,
 } from '@/features/wms/data/topology-data'
 import {
+  DEMO_PIN,
+  INITIAL_INVOICE_PREFIXES,
+  INITIAL_POINTS_OF_SALE,
+  INITIAL_USERS,
+  type InvoicePrefix,
+  type PointOfSale,
+  type WmsUser,
+} from '@/features/wms/data/users-data'
+import { TODAY_STR, nowTimestamp } from '@/features/wms/domain/clock'
+import {
   allocateFefo,
   canApproveByRole,
   computeBuckets,
   move,
+  type Allocation,
   type ClaimCase,
   type CountSession,
   type DamageReport,
   type InventoryAdjustment,
   type MerchandiseBuckets,
   type Movement,
+  type OrderLine,
   type Partida,
+  type PaymentMethod,
   type PickupOrder,
   type ReceiptRecord,
   type SkuItem,
   type WmsTransfer,
 } from '@/features/wms/domain/inventory'
+import {
+  DELIVERY_BLOCK_MESSAGE,
+  deliveryBlockReason,
+  normalizeInvoiceNumber,
+  parseInvoicesCsv,
+  type InvoiceImportPreview,
+  type ParsedInvoice,
+} from '@/features/wms/domain/invoicing'
 
-const TODAY_STR = '2026-10-20'
+export interface OrderLineInput {
+  sku: string
+  qty: number
+  /** Precio unitario pactado. Si se omite se usa el del catálogo. */
+  unitPrice?: number
+}
 
 interface WmsContextType {
+  /** Usuario con sesión iniciada. Todo movimiento queda a su nombre. */
+  user: WmsUser
+  users: WmsUser[]
   role: RoleCode
+  switchUser: (userId: string) => void
+  /** Atajo de la demo: cambia a un usuario activo con ese perfil. */
   setRole: (role: RoleCode) => void
+  createUser: (params: {
+    name: string
+    email: string
+    role: RoleCode
+    scope: string[] | 'ALL'
+    pin?: string
+  }) => boolean
+  updateUser: (
+    id: string,
+    patch: Partial<Pick<WmsUser, 'name' | 'role' | 'scope' | 'active' | 'pin'>>
+  ) => boolean
+  resetDemoData: () => void
   scenario: TopologyScenario
   setScenario: (sc: TopologyScenario) => void
   topology: WmsTopologyConfig
@@ -75,15 +131,14 @@ interface WmsContextType {
   adjustments: InventoryAdjustment[]
   transfers: WmsTransfer[]
   buckets: MerchandiseBuckets
+  prefixes: InvoicePrefix[]
+  pointsOfSale: PointOfSale[]
   updateOperationalParams: (
     id: string,
     patch: { cutoff?: string; schedule?: string; manager?: string }
   ) => void
   createSku: (sku: SkuItem) => boolean
-  updateSkuCatalog: (
-    sku: string,
-    patch: Partial<Omit<SkuItem, 'sku'>>
-  ) => void
+  updateSkuCatalog: (sku: string, patch: Partial<Omit<SkuItem, 'sku'>>) => void
   addStockPartida: (params: {
     sku: string
     warehouse: string
@@ -101,25 +156,49 @@ interface WmsContextType {
     receivedGoodQty: number
     damagedQty: number
     expiry: string | null
-  }) => void
+    photos?: string[]
+  }) => string
+  /** Crea un pedido con reserva FEFO. Devuelve el id o null si no se pudo reservar. */
   createOrder: (params: {
     customer: string
     customerRut: string
     channel: PickupOrder['channel']
     warehouse: string
-    lines: { sku: string; qty: number }[]
-  }) => boolean
-  importOrdersCsv: (csvText: string) => { imported: number; errors: string[] }
+    lines: OrderLineInput[]
+    advisor?: string
+  }) => string | null
+  /** Lee un CSV de facturas sin guardar nada: devuelve qué se importaría y qué no. */
+  previewInvoicesImport: (
+    csvText: string,
+    warehouseId?: string
+  ) => InvoiceImportPreview
+  /** Aplica las facturas validadas: crea pedidos reservados o anula facturas ya cargadas. */
+  applyInvoicesImport: (invoices: ParsedInvoice[]) => {
+    imported: number
+    voided: number
+    failed: number
+  }
+  /** Sugiere el siguiente número de factura para un prefijo (FV-10459). */
+  suggestInvoiceNumber: (prefix: string) => string
+  /** Registra la factura de un pedido (caja). Sin factura no hay entrega. */
+  invoiceOrder: (
+    orderId: string,
+    params: { number: string; paymentMethod: PaymentMethod }
+  ) => boolean
+  voidInvoice: (orderId: string, reason: string) => boolean
   prepareOrder: (orderId: string) => void
+  nextRemission: () => string
+  /** Registra una entrega validando que el pedido tenga factura vigente. */
   registerPickup: (
     orderId: string,
     params: {
       receivedByName: string
       receivedByRut: string
-      docRef: string
+      docRef?: string
       quantities: Record<string, number>
+      photos?: string[]
     }
-  ) => void
+  ) => boolean
   cancelOrder: (orderId: string) => void
   reportDamage: (params: {
     partidaId: string
@@ -127,6 +206,7 @@ interface WmsContextType {
     reason: string
     evidence: string
     claimableToSupplier: boolean
+    photos?: string[]
   }) => void
   resolveDamage: (
     damageId: string,
@@ -157,45 +237,183 @@ interface WmsContextType {
     qtyRequested: number
   ) => void
   advanceTransfer: (id: string, nextStatus: WmsTransfer['status']) => void
+  updateInvoicePrefix: (
+    prefix: string,
+    patch: Partial<Pick<InvoicePrefix, 'description' | 'nextNumber' | 'active'>>
+  ) => void
+  addInvoicePrefix: (prefix: string, description: string) => boolean
+  addPointOfSale: (params: {
+    name: string
+    warehouse: string
+    prefix: string
+  }) => void
+  updatePointOfSale: (
+    id: string,
+    patch: Partial<
+      Pick<PointOfSale, 'name' | 'warehouse' | 'prefix' | 'active'>
+    >
+  ) => void
 }
 
 const WmsContext = createContext<WmsContextType | null>(null)
 
-function nowTimestamp(): string {
-  const now = new Date()
-  const pad = (n: number) => String(n).padStart(2, '0')
-  return `${TODAY_STR} ${pad(now.getHours())}:${pad(now.getMinutes())}`
+const formatCop = (n: number) =>
+  n.toLocaleString('es-CO', {
+    style: 'currency',
+    currency: 'COP',
+    maximumFractionDigits: 0,
+  })
+
+function nextOrderNumber(orders: PickupOrder[], extra = 0): number {
+  const max = orders.reduce((m, o) => {
+    const n = Number(o.id.replace(/\D/g, ''))
+    return Number.isFinite(n) ? Math.max(m, n) : m
+  }, 2200)
+  return max + 1 + extra
 }
 
 export function WmsProvider({ children }: { children: React.ReactNode }) {
-  const [role, setRoleState] = useState<RoleCode>('ADM')
-  const [scenario, setScenarioState] = useState<TopologyScenario>('CASE_3')
+  const [persisted] = useState(loadPersisted)
+
+  const [users, setUsers] = useState<WmsUser[]>(
+    () => persisted.users ?? INITIAL_USERS
+  )
+  const [sessionUserId, setSessionUserIdState] = useState<string | null>(
+    getSessionUserId
+  )
+  const user = useMemo(
+    () =>
+      users.find((u) => u.id === sessionUserId && u.active) ??
+      users.find((u) => u.active) ??
+      INITIAL_USERS[0],
+    [users, sessionUserId]
+  )
+  const role = user.role
+  const userName = user.name
+
+  const [scenario, setScenarioState] = useState<TopologyScenario>(
+    () => persisted.scenario ?? 'CASE_3'
+  )
   const [warehouse, setWarehouseState] = useState<string>('ALL')
   const [showRestricted, setShowRestricted] = useState<boolean>(false)
 
-  const [allAlmacenes, setAllAlmacenes] =
-    useState<WmsAlmacen[]>(INITIAL_ALMACENES)
-  const [allWarehouses, setAllWarehouses] =
-    useState<WmsWarehouse[]>(INITIAL_WAREHOUSES)
+  const [allAlmacenes, setAllAlmacenes] = useState<WmsAlmacen[]>(
+    () => persisted.allAlmacenes ?? INITIAL_ALMACENES
+  )
+  const [allWarehouses, setAllWarehouses] = useState<WmsWarehouse[]>(
+    () => persisted.allWarehouses ?? INITIAL_WAREHOUSES
+  )
 
-  const [skus, setSkus] = useState<SkuItem[]>(INITIAL_SKUS)
-  const [partidas, setPartidas] = useState<Partida[]>(INITIAL_PARTIDAS)
-  const [movements, setMovements] = useState<Movement[]>(INITIAL_MOVEMENTS)
-  const [orders, setOrders] = useState<PickupOrder[]>(INITIAL_ORDERS)
-  const [receipts, setReceipts] = useState<ReceiptRecord[]>(INITIAL_RECEIPTS)
-  const [claims, setClaims] = useState<ClaimCase[]>(INITIAL_CLAIMS)
-  const [damages, setDamages] = useState<DamageReport[]>(INITIAL_DAMAGES)
-  const [counts, setCounts] = useState<CountSession[]>(INITIAL_COUNTS)
-  const [adjustments, setAdjustments] =
-    useState<InventoryAdjustment[]>(INITIAL_ADJUSTMENTS)
-  const [transfers, setTransfers] = useState<WmsTransfer[]>(INITIAL_TRANSFERS)
+  const [skus, setSkus] = useState<SkuItem[]>(
+    () => persisted.skus ?? INITIAL_SKUS
+  )
+  const [partidas, setPartidas] = useState<Partida[]>(
+    () => persisted.partidas ?? INITIAL_PARTIDAS
+  )
+  const [movements, setMovements] = useState<Movement[]>(
+    () => persisted.movements ?? INITIAL_MOVEMENTS
+  )
+  const [orders, setOrders] = useState<PickupOrder[]>(
+    () => persisted.orders ?? INITIAL_ORDERS
+  )
+  const [receipts, setReceipts] = useState<ReceiptRecord[]>(
+    () => persisted.receipts ?? INITIAL_RECEIPTS
+  )
+  const [claims, setClaims] = useState<ClaimCase[]>(
+    () => persisted.claims ?? INITIAL_CLAIMS
+  )
+  const [damages, setDamages] = useState<DamageReport[]>(
+    () => persisted.damages ?? INITIAL_DAMAGES
+  )
+  const [counts, setCounts] = useState<CountSession[]>(
+    () => persisted.counts ?? INITIAL_COUNTS
+  )
+  const [adjustments, setAdjustments] = useState<InventoryAdjustment[]>(
+    () => persisted.adjustments ?? INITIAL_ADJUSTMENTS
+  )
+  const [transfers, setTransfers] = useState<WmsTransfer[]>(
+    () => persisted.transfers ?? INITIAL_TRANSFERS
+  )
+  const [prefixes, setPrefixes] = useState<InvoicePrefix[]>(
+    () => persisted.prefixes ?? INITIAL_INVOICE_PREFIXES
+  )
+  const [pointsOfSale, setPointsOfSale] = useState<PointOfSale[]>(
+    () => persisted.pointsOfSale ?? INITIAL_POINTS_OF_SALE
+  )
+  const [remissionSeq, setRemissionSeq] = useState<number>(
+    () => persisted.remissionSeq ?? 104501
+  )
+
+  // Persistencia: se guarda poco después del último cambio.
+  const warnedStorage = useRef(false)
+  useEffect(() => {
+    const t = window.setTimeout(() => {
+      const result = savePersisted({
+        scenario,
+        allAlmacenes,
+        allWarehouses,
+        skus,
+        partidas,
+        movements,
+        orders,
+        receipts,
+        claims,
+        damages,
+        counts,
+        adjustments,
+        transfers,
+        users,
+        prefixes,
+        pointsOfSale,
+        remissionSeq,
+      })
+      if (result !== 'ok' && !warnedStorage.current) {
+        warnedStorage.current = true
+        toast.warning(
+          result === 'sin-fotos'
+            ? 'El navegador se quedó sin espacio: los datos se guardan, pero las fotos nuevas no persisten al recargar.'
+            : 'No se pudo guardar en este navegador: los cambios se perderán al recargar.'
+        )
+      }
+    }, 400)
+    return () => window.clearTimeout(t)
+  }, [
+    scenario,
+    allAlmacenes,
+    allWarehouses,
+    skus,
+    partidas,
+    movements,
+    orders,
+    receipts,
+    claims,
+    damages,
+    counts,
+    adjustments,
+    transfers,
+    users,
+    prefixes,
+    pointsOfSale,
+    remissionSeq,
+  ])
 
   const topology = TOPOLOGY_SCENARIOS[scenario] || TOPOLOGY_SCENARIOS.CASE_3
-  const almacenes = allAlmacenes.filter((a) =>
-    (topology?.almacenIds ?? []).includes(a.id)
-  )
-  const warehouses = allWarehouses.filter((w) =>
+
+  // Cada usuario ve solo sus bodegas; si su alcance no coincide con la
+  // estructura activa se muestran todas para no dejarlo sin pantalla.
+  const topologyWarehouses = allWarehouses.filter((w) =>
     (topology?.warehouseIds ?? []).includes(w.id)
+  )
+  const userWarehouses =
+    user.scope === 'ALL'
+      ? topologyWarehouses
+      : topologyWarehouses.filter((w) => user.scope.includes(w.id))
+  const warehouses =
+    userWarehouses.length > 0 ? userWarehouses : topologyWarehouses
+  const almacenes = allAlmacenes.filter(
+    (a) =>
+      (topology?.almacenIds ?? []).includes(a.id) &&
+      warehouses.some((w) => w.almacenId === a.id)
   )
 
   const activeWarehouseIds = useMemo(() => {
@@ -215,7 +433,8 @@ export function WmsProvider({ children }: { children: React.ReactNode }) {
   const isReadOnly = WMS_ROLES[role]?.readOnly ?? false
   const hasAccess = (screen: WmsScreen) => screen.roles.includes(role)
   const canActOnScreen = (screen: WmsScreen) => screen.actRoles.includes(role)
-  const canApproveAmount = (valueCOP: number) => canApproveByRole(role, valueCOP)
+  const canApproveAmount = (valueCOP: number) =>
+    canApproveByRole(role, valueCOP)
 
   const buckets = useMemo(
     () =>
@@ -224,13 +443,105 @@ export function WmsProvider({ children }: { children: React.ReactNode }) {
         activeWarehouseIds,
         TODAY_STR
       ),
-    [skus, partidas, orders, damages, claims, adjustments, movements, activeWarehouseIds]
+    [
+      skus,
+      partidas,
+      orders,
+      damages,
+      claims,
+      adjustments,
+      movements,
+      activeWarehouseIds,
+    ]
   )
 
+  const switchUser = (userId: string) => {
+    const target = users.find((u) => u.id === userId && u.active)
+    if (!target) {
+      toast.error('Ese usuario no está activo')
+      return
+    }
+    setSessionUserId(target.id)
+    setSessionUserIdState(target.id)
+    setWarehouseState('ALL')
+    toast.success(`Sesión de ${target.name} · ${WMS_ROLES[target.role].name}`)
+  }
+
   const setRole = (newRole: RoleCode) => {
-    const valid = WMS_ROLES[newRole] ? newRole : 'ADM'
-    setRoleState(valid)
-    toast.success(`Perfil activo: ${WMS_ROLES[valid].name}`)
+    const target = users.find((u) => u.role === newRole && u.active)
+    if (!target) {
+      toast.error(
+        `No hay un usuario activo con el perfil ${WMS_ROLES[newRole].name}`
+      )
+      return
+    }
+    switchUser(target.id)
+  }
+
+  const createUser: WmsContextType['createUser'] = ({
+    name,
+    email,
+    role: newRole,
+    scope,
+    pin,
+  }) => {
+    const cleanEmail = email.trim().toLowerCase()
+    if (name.trim().length < 3) {
+      toast.error('Escribe el nombre completo del usuario')
+      return false
+    }
+    if (!/^\S+@\S+\.\S+$/.test(cleanEmail)) {
+      toast.error('El correo no es válido')
+      return false
+    }
+    if (users.some((u) => u.email.toLowerCase() === cleanEmail)) {
+      toast.error('Ya existe un usuario con ese correo')
+      return false
+    }
+    const nextId = `USR-${String(users.length + 1).padStart(2, '0')}`
+    setUsers((prev) => [
+      ...prev,
+      {
+        id: nextId,
+        name: name.trim(),
+        email: cleanEmail,
+        role: newRole,
+        scope,
+        pin: pin?.trim() || DEMO_PIN,
+        active: true,
+      },
+    ])
+    toast.success(
+      `Usuario ${name.trim()} creado como ${WMS_ROLES[newRole].name}`
+    )
+    return true
+  }
+
+  const updateUser: WmsContextType['updateUser'] = (id, patch) => {
+    const target = users.find((u) => u.id === id)
+    if (!target) return false
+    const next = { ...target, ...patch }
+    const remainingAdmins = users.filter(
+      (u) =>
+        (u.id === id ? next : u).role === 'ADM' &&
+        (u.id === id ? next : u).active
+    )
+    if (remainingAdmins.length === 0) {
+      toast.error('Debe quedar al menos un administrador activo')
+      return false
+    }
+    if (id === user.id && patch.active === false) {
+      toast.error('No puedes desactivar tu propio usuario')
+      return false
+    }
+    setUsers((prev) => prev.map((u) => (u.id === id ? next : u)))
+    toast.success(`Usuario ${next.name} actualizado`)
+    return true
+  }
+
+  const resetDemoData = () => {
+    clearPersisted()
+    window.location.reload()
   }
 
   const setScenario = (sc: TopologyScenario) => {
@@ -294,9 +605,7 @@ export function WmsProvider({ children }: { children: React.ReactNode }) {
     sku: string,
     patch: Partial<Omit<SkuItem, 'sku'>>
   ) => {
-    setSkus((prev) =>
-      prev.map((s) => (s.sku === sku ? { ...s, ...patch } : s))
-    )
+    setSkus((prev) => prev.map((s) => (s.sku === sku ? { ...s, ...patch } : s)))
     toast.success(`Producto ${sku} actualizado`)
   }
 
@@ -319,7 +628,7 @@ export function WmsProvider({ children }: { children: React.ReactNode }) {
       toast.error('La cantidad a ingresar debe ser mayor a 0')
       return
     }
-    const userLabel = WMS_ROLES[role].name
+    const userLabel = userName
     const ts = nowTimestamp()
     const partidaId = `PAR-${String(partidas.length + 101)}`
 
@@ -356,7 +665,9 @@ export function WmsProvider({ children }: { children: React.ReactNode }) {
 
     setPartidas((prev) => [newPartida, ...prev])
     setMovements((prev) => [newMov, ...prev])
-    toast.success(`Stock ingresado: Partida ${partidaId} (+${qty} uds de ${sku} en ${wh})`)
+    toast.success(
+      `Stock ingresado: Partida ${partidaId} (+${qty} uds de ${sku} en ${wh})`
+    )
   }
 
   const receive: WmsContextType['receive'] = ({
@@ -368,8 +679,9 @@ export function WmsProvider({ children }: { children: React.ReactNode }) {
     receivedGoodQty,
     damagedQty,
     expiry,
+    photos,
   }) => {
-    const userLabel = WMS_ROLES[role].name
+    const userLabel = userName
     const ts = nowTimestamp()
     const existing = partidas.find(
       (p) => p.sku === sku && p.warehouse === wh && p.expiry === expiry
@@ -416,10 +728,7 @@ export function WmsProvider({ children }: { children: React.ReactNode }) {
       newMovs.push(resGood.movement)
     }
 
-    const missingQty = Math.max(
-      0,
-      expectedQty - receivedGoodQty - damagedQty
-    )
+    const missingQty = Math.max(0, expectedQty - receivedGoodQty - damagedQty)
     let claimId: string | null = null
 
     if (damagedQty > 0) {
@@ -489,9 +798,96 @@ export function WmsProvider({ children }: { children: React.ReactNode }) {
       expiry,
       partidaId,
       claimId,
+      receivedBy: userLabel,
+      photos: photos && photos.length > 0 ? photos : undefined,
     }
     setReceipts((prev) => [rec, ...prev])
+    return rec.id
   }
+
+  const priceOf = (skuCode: string) =>
+    skus.find((s) => s.sku === skuCode)?.unitPrice ?? 0
+
+  /** Reserva stock FEFO para las líneas. Lanza un error si algún producto no alcanza. */
+  const reserveLines = (
+    basePartidas: Partida[],
+    orderId: string,
+    wh: string,
+    lines: OrderLineInput[],
+    ts: string
+  ) => {
+    let nextPartidas = [...basePartidas]
+    const newMovs: Movement[] = []
+    const built: OrderLine[] = lines.map((l) => {
+      const allocs: Allocation[] = allocateFefo(nextPartidas, l.sku, wh, l.qty)
+      for (const a of allocs) {
+        const res = move(nextPartidas, {
+          ts,
+          partidaId: a.partidaId,
+          from: 'disponible',
+          to: 'reservado',
+          qty: a.qty,
+          type: 'Reserva',
+          ref: orderId,
+          user: userName,
+        })
+        nextPartidas = res.partidas
+        newMovs.push(res.movement)
+      }
+      return {
+        sku: l.sku,
+        qtyOrdered: l.qty,
+        qtyPickedUp: 0,
+        unitPrice: l.unitPrice ?? priceOf(l.sku),
+        allocations: allocs,
+      }
+    })
+    return { partidas: nextPartidas, movements: newMovs, lines: built }
+  }
+
+  /** Devuelve a disponible lo que el pedido todavía tenía reservado. */
+  const releaseOrderStock = (
+    basePartidas: Partida[],
+    order: PickupOrder,
+    ref: string,
+    ts: string
+  ) => {
+    let nextPartidas = [...basePartidas]
+    const newMovs: Movement[] = []
+    for (const line of order.lines) {
+      for (const a of line.allocations) {
+        if (a.qty > 0) {
+          const res = move(nextPartidas, {
+            ts,
+            partidaId: a.partidaId,
+            from: 'reservado',
+            to: 'disponible',
+            qty: a.qty,
+            type: 'Liberación',
+            ref,
+            user: userName,
+          })
+          nextPartidas = res.partidas
+          newMovs.push(res.movement)
+        }
+      }
+    }
+    return { partidas: nextPartidas, movements: newMovs }
+  }
+
+  const voidedOrder = (order: PickupOrder, reason: string): PickupOrder => ({
+    ...order,
+    status: 'Cancelado',
+    lines: order.lines.map((l) => ({ ...l, allocations: [] })),
+    invoice: order.invoice
+      ? {
+          ...order.invoice,
+          status: 'Anulada',
+          voidedAt: TODAY_STR,
+          voidReason: reason,
+        }
+      : order.invoice,
+  })
 
   const createOrder: WmsContextType['createOrder'] = ({
     customer,
@@ -499,37 +895,26 @@ export function WmsProvider({ children }: { children: React.ReactNode }) {
     channel,
     warehouse: wh,
     lines,
+    advisor,
   }) => {
     try {
-      let nextPartidas = [...partidas]
-      const newMovs: Movement[] = []
-      const orderId = `PED-${2220 + orders.length}`
+      for (const l of lines) {
+        const s = skus.find((x) => x.sku === l.sku)
+        if (!s) throw new Error(`El producto ${l.sku} no existe en el catálogo`)
+        if (l.unitPrice !== undefined && role !== 'ADM' && role !== 'JB') {
+          const minPrice = Math.round(
+            s.unitPrice * (1 - s.maxDiscountPct / 100)
+          )
+          if (l.unitPrice < minPrice) {
+            throw new Error(
+              `${s.name.split(' ').slice(0, 3).join(' ')}: el descuento máximo es ${s.maxDiscountPct}% (precio mínimo ${formatCop(minPrice)})`
+            )
+          }
+        }
+      }
+      const orderId = `PED-${nextOrderNumber(orders)}`
       const ts = nowTimestamp()
-      const userLabel = WMS_ROLES[role].name
-
-      const builtLines = lines.map((l) => {
-        const allocs = allocateFefo(nextPartidas, l.sku, wh, l.qty)
-        for (const a of allocs) {
-          const res = move(nextPartidas, {
-            ts,
-            partidaId: a.partidaId,
-            from: 'disponible',
-            to: 'reservado',
-            qty: a.qty,
-            type: 'Reserva',
-            ref: orderId,
-            user: userLabel,
-          })
-          nextPartidas = res.partidas
-          newMovs.push(res.movement)
-        }
-        return {
-          sku: l.sku,
-          qtyOrdered: l.qty,
-          qtyPickedUp: 0,
-          allocations: allocs,
-        }
-      })
+      const reserved = reserveLines(partidas, orderId, wh, lines, ts)
 
       const newOrder: PickupOrder = {
         id: orderId,
@@ -540,120 +925,297 @@ export function WmsProvider({ children }: { children: React.ReactNode }) {
         channel,
         warehouse: wh,
         status: 'Reservado',
-        lines: builtLines,
+        advisor: advisor ?? (role === 'ASE' ? userName : undefined),
+        invoice: null,
+        lines: reserved.lines,
         pickups: [],
       }
 
-      setPartidas(nextPartidas)
-      setMovements((prev) => [...newMovs, ...prev])
+      setPartidas(reserved.partidas)
+      setMovements((prev) => [...reserved.movements, ...prev])
       setOrders((prev) => [newOrder, ...prev])
-      toast.success(`Pedido ${orderId} creado con reserva FEFO`)
-      return true
+      toast.success(`Pedido ${orderId} creado y stock reservado`)
+      return orderId
     } catch (err) {
       toast.error(
         err instanceof Error ? err.message : 'No se pudo reservar el pedido'
       )
-      return false
+      return null
     }
   }
 
-  const importOrdersCsv = (csvText: string) => {
-    const rawLines = csvText
-      .split(/\r?\n/)
-      .map((l) => l.trim())
-      .filter((l) => l.length > 0 && !l.toLowerCase().startsWith('cliente'))
+  const previewInvoicesImport: WmsContextType['previewInvoicesImport'] = (
+    csvText,
+    warehouseId
+  ) => {
+    const availability = new Map<string, number>()
+    for (const p of partidas) {
+      const key = `${p.warehouse}|${p.sku}`
+      availability.set(key, (availability.get(key) ?? 0) + p.qty.disponible)
+    }
+    const existingInvoices = new Map<
+      string,
+      { orderId: string; voided: boolean; delivered: boolean }
+    >()
+    for (const o of orders) {
+      if (!o.invoice) continue
+      existingInvoices.set(normalizeInvoiceNumber(o.invoice.number), {
+        orderId: o.id,
+        voided: o.invoice.status === 'Anulada',
+        delivered: o.lines.some((l) => l.qtyPickedUp > 0),
+      })
+    }
+    return parseInvoicesCsv(csvText, {
+      skus,
+      warehouseIds: warehouses.map((w) => w.id),
+      defaultWarehouse:
+        warehouseId ?? activeWarehouseIds[0] ?? warehouses[0]?.id ?? '',
+      availability,
+      existingInvoices,
+      defaultPrefix: prefixes.find((p) => p.active)?.prefix ?? 'FV',
+      todayStr: TODAY_STR,
+    })
+  }
 
+  const applyInvoicesImport: WmsContextType['applyInvoicesImport'] = (
+    invoices
+  ) => {
     let nextPartidas = [...partidas]
     const newMovs: Movement[] = []
     const newOrders: PickupOrder[] = []
-    const errors: string[] = []
+    const voidIds = new Map<string, string>()
+    let voided = 0
+    let failed = 0
     const ts = nowTimestamp()
-    const userLabel = WMS_ROLES[role].name
 
-    rawLines.forEach((row, idx) => {
-      const cols = row.split(',').map((c) => c.trim())
-      if (cols.length < 4) {
-        errors.push(`Fila ${idx + 1}: formato inválido (use cliente,sku,cantidad,bodega)`)
-        return
-      }
-      const [customer, sku, qtyStr, wh] = cols
-      const qty = Number(qtyStr)
-      if (!customer || !skus.some((s) => s.sku === sku)) {
-        errors.push(`Fila ${idx + 1}: SKU ${sku} no existe en el catálogo`)
-        return
-      }
-      if (!Number.isInteger(qty) || qty <= 0) {
-        errors.push(`Fila ${idx + 1}: cantidad inválida (${qtyStr})`)
-        return
-      }
-      try {
-        const orderId = `PED-${2220 + orders.length + newOrders.length}`
-        const allocs = allocateFefo(nextPartidas, sku, wh, qty)
-        for (const a of allocs) {
-          const res = move(nextPartidas, {
-            ts,
-            partidaId: a.partidaId,
-            from: 'disponible',
-            to: 'reservado',
-            qty: a.qty,
-            type: 'Reserva',
-            ref: orderId,
-            user: userLabel,
+    for (const inv of invoices) {
+      if (inv.action === 'importar') {
+        try {
+          const orderId = `PED-${nextOrderNumber(orders, newOrders.length)}`
+          const reserved = reserveLines(
+            nextPartidas,
+            orderId,
+            inv.warehouse,
+            inv.lines.map((l) => ({
+              sku: l.sku,
+              qty: l.qty,
+              unitPrice: l.unitPrice,
+            })),
+            ts
+          )
+          nextPartidas = reserved.partidas
+          newMovs.push(...reserved.movements)
+          newOrders.push({
+            id: orderId,
+            createdAt: inv.issuedAt,
+            readyAt: null,
+            customer: inv.customer,
+            customerRut: inv.customerNit || 'Sin NIT',
+            channel: 'Mostrador',
+            warehouse: inv.warehouse,
+            status: 'Reservado',
+            advisor: inv.advisor || undefined,
+            lines: reserved.lines,
+            pickups: [],
+            invoice: {
+              number: inv.number,
+              issuedAt: inv.issuedAt,
+              status: 'Emitida',
+              paymentMethod: inv.paymentMethod,
+              source: 'Siigo (CSV)',
+              issuedBy: userName,
+            },
           })
-          nextPartidas = res.partidas
-          newMovs.push(res.movement)
+        } catch {
+          failed++
         }
-        newOrders.push({
-          id: orderId,
-          createdAt: TODAY_STR,
-          readyAt: null,
-          customer,
-          customerRut: '76.000.000-0',
-          channel: 'Obra',
-          warehouse: wh,
-          status: 'Reservado',
-          lines: [{ sku, qtyOrdered: qty, qtyPickedUp: 0, allocations: allocs }],
-          pickups: [],
-        })
-      } catch (err) {
-        errors.push(
-          `Fila ${idx + 1}: ${err instanceof Error ? err.message : 'Stock insuficiente'}`
+      } else if (inv.action === 'anular') {
+        const target = orders.find(
+          (o) =>
+            o.invoice &&
+            normalizeInvoiceNumber(o.invoice.number) === inv.number &&
+            o.invoice.status === 'Emitida'
         )
+        if (target) {
+          const released = releaseOrderStock(
+            nextPartidas,
+            target,
+            `${target.id} (Factura ${inv.number} anulada en Siigo)`,
+            ts
+          )
+          nextPartidas = released.partidas
+          newMovs.push(...released.movements)
+          voidIds.set(target.id, 'Anulada en Siigo (importación)')
+          voided++
+        }
       }
-    })
-
-    if (newOrders.length > 0) {
-      setPartidas(nextPartidas)
-      setMovements((prev) => [...newMovs, ...prev])
-      setOrders((prev) => [...newOrders, ...prev])
-      toast.success(`${newOrders.length} pedido(s) importado(s) con reserva FEFO`)
     }
-    return { imported: newOrders.length, errors }
+
+    if (newOrders.length === 0 && voided === 0) {
+      if (failed > 0) toast.error('No se pudo reservar ninguna factura')
+      return { imported: 0, voided: 0, failed }
+    }
+
+    setPartidas(nextPartidas)
+    setMovements((prev) => [...newMovs, ...prev])
+    setOrders((prev) => [
+      ...newOrders,
+      ...prev.map((o) =>
+        voidIds.has(o.id) ? voidedOrder(o, voidIds.get(o.id)!) : o
+      ),
+    ])
+    const parts: string[] = []
+    if (newOrders.length > 0) {
+      const n = newOrders.length
+      parts.push(
+        `${n} ${n === 1 ? 'factura cargada' : 'facturas cargadas'} con stock reservado`
+      )
+    }
+    if (voided > 0) {
+      parts.push(`${voided} ${voided === 1 ? 'anulada' : 'anuladas'}`)
+    }
+    toast.success(parts.join(' · '))
+    return { imported: newOrders.length, voided, failed }
+  }
+
+  const suggestInvoiceNumber = (prefix: string) => {
+    const p = prefixes.find((x) => x.prefix === prefix)
+    return `${prefix}-${p?.nextNumber ?? 1}`
+  }
+
+  const invoiceOrder: WmsContextType['invoiceOrder'] = (
+    orderId,
+    { number, paymentMethod }
+  ) => {
+    const order = orders.find((o) => o.id === orderId)
+    if (!order) return false
+    if (order.invoice) {
+      toast.error('Este pedido ya tiene factura')
+      return false
+    }
+    if (order.status === 'Cancelado' || order.status === 'Entregado') {
+      toast.error('Este pedido ya no se puede facturar')
+      return false
+    }
+    const normalized = normalizeInvoiceNumber(number)
+    const match = normalized.match(/^([A-Z]{1,6})-(\d{1,10})$/)
+    if (!match) {
+      toast.error(
+        'El número debe tener prefijo y consecutivo, por ejemplo FV-10459'
+      )
+      return false
+    }
+    const prefixCfg = prefixes.find((p) => p.prefix === match[1] && p.active)
+    if (!prefixCfg) {
+      toast.error(
+        `El prefijo ${match[1]} no está habilitado en Facturación y cajas`
+      )
+      return false
+    }
+    if (
+      orders.some(
+        (o) =>
+          o.invoice && normalizeInvoiceNumber(o.invoice.number) === normalized
+      )
+    ) {
+      toast.error(`La factura ${normalized} ya está registrada en otro pedido`)
+      return false
+    }
+
+    setOrders((prev) =>
+      prev.map((o) =>
+        o.id === orderId
+          ? {
+              ...o,
+              invoice: {
+                number: normalized,
+                issuedAt: TODAY_STR,
+                status: 'Emitida',
+                paymentMethod,
+                source: 'Caja',
+                issuedBy: userName,
+              },
+            }
+          : o
+      )
+    )
+    const consecutive = Number(match[2])
+    if (consecutive >= prefixCfg.nextNumber) {
+      setPrefixes((prev) =>
+        prev.map((p) =>
+          p.prefix === prefixCfg.prefix
+            ? { ...p, nextNumber: consecutive + 1 }
+            : p
+        )
+      )
+    }
+    toast.success(`Factura ${normalized} registrada · ${paymentMethod}`)
+    return true
+  }
+
+  const voidInvoice: WmsContextType['voidInvoice'] = (orderId, reason) => {
+    const order = orders.find((o) => o.id === orderId)
+    if (!order?.invoice || order.invoice.status === 'Anulada') return false
+    if (role !== 'ADM' && role !== 'JB' && role !== 'CAJ') {
+      toast.error('Tu perfil no puede anular facturas')
+      return false
+    }
+    if (reason.trim().length < 5) {
+      toast.error('Indica el motivo de la anulación')
+      return false
+    }
+    const ts = nowTimestamp()
+    const released = releaseOrderStock(
+      partidas,
+      order,
+      `${order.id} (Factura ${order.invoice.number} anulada)`,
+      ts
+    )
+    setPartidas(released.partidas)
+    setMovements((prev) => [...released.movements, ...prev])
+    setOrders((prev) =>
+      prev.map((o) => (o.id === orderId ? voidedOrder(o, reason.trim()) : o))
+    )
+    const delivered = order.lines.some((l) => l.qtyPickedUp > 0)
+    if (delivered) {
+      toast.warning(
+        `Factura ${order.invoice.number} anulada, pero ya había mercancía entregada: queda para revisión en Conciliación`
+      )
+    } else {
+      toast.info(`Factura ${order.invoice.number} anulada y stock liberado`)
+    }
+    return true
   }
 
   const prepareOrder = (orderId: string) => {
     setOrders((prev) =>
       prev.map((o) =>
-        o.id === orderId
-          ? { ...o, status: 'Preparado', readyAt: TODAY_STR }
-          : o
+        o.id === orderId ? { ...o, status: 'Preparado', readyAt: TODAY_STR } : o
       )
     )
-    toast.success(`Pedido ${orderId} preparado y listo para retiro en bodega`)
+    toast.success(`Pedido ${orderId} preparado y listo para entrega en bodega`)
   }
+
+  const nextRemission = () => `REM-${remissionSeq}`
 
   const registerPickup: WmsContextType['registerPickup'] = (
     orderId,
-    { receivedByName, receivedByRut, docRef, quantities }
+    { receivedByName, receivedByRut, docRef, quantities, photos }
   ) => {
     const order = orders.find((o) => o.id === orderId)
-    if (!order) return
+    if (!order) return false
+
+    const block = deliveryBlockReason(order)
+    if (block) {
+      toast.error(DELIVERY_BLOCK_MESSAGE[block])
+      return false
+    }
 
     let nextPartidas = [...partidas]
     const newMovs: Movement[] = []
     const pickedItems: { sku: string; qty: number }[] = []
     const ts = nowTimestamp()
-    const userLabel = WMS_ROLES[role].name
+    const remision = docRef?.trim() || nextRemission()
 
     const nextLines = order.lines.map((line) => {
       const pendingLine = line.qtyOrdered - line.qtyPickedUp
@@ -676,8 +1238,8 @@ export function WmsProvider({ children }: { children: React.ReactNode }) {
             to: null,
             qty: take,
             type: 'Entrega',
-            ref: `${orderId} · ${docRef}`,
-            user: userLabel,
+            ref: `${order.invoice?.number ?? orderId} · ${remision}`,
+            user: userName,
             outDateStr: TODAY_STR,
           })
           nextPartidas = res.partidas
@@ -695,8 +1257,8 @@ export function WmsProvider({ children }: { children: React.ReactNode }) {
     })
 
     if (pickedItems.length === 0) {
-      toast.error('Ingresa al menos 1 unidad a retirar')
-      return
+      toast.error('Ingresa al menos 1 unidad para entregar')
+      return false
     }
 
     const allCompleted = nextLines.every((l) => l.qtyPickedUp >= l.qtyOrdered)
@@ -719,52 +1281,43 @@ export function WmsProvider({ children }: { children: React.ReactNode }) {
                   ts,
                   receivedByName,
                   receivedByRut,
-                  docRef,
+                  docRef: remision,
                   items: pickedItems,
+                  deliveredBy: userName,
+                  photos: photos && photos.length > 0 ? photos : undefined,
                 },
               ],
             }
           : o
       )
     )
+    if (remision === nextRemission()) setRemissionSeq((n) => n + 1)
     toast.success(
       allCompleted
-        ? `Retiro completo de ${orderId} entregado a ${receivedByName}`
-        : `Retiro parcial registrado en ${orderId}; saldo sigue pendiente`
+        ? `Entrega completa de la factura ${order.invoice?.number ?? orderId} a ${receivedByName}`
+        : `Entrega parcial registrada; el saldo de ${order.invoice?.number ?? orderId} sigue pendiente`
     )
+    return true
   }
 
   const cancelOrder = (orderId: string) => {
     const order = orders.find((o) => o.id === orderId)
     if (!order || order.status === 'Entregado' || order.status === 'Cancelado')
       return
-
-    let nextPartidas = [...partidas]
-    const newMovs: Movement[] = []
-    const ts = nowTimestamp()
-    const userLabel = WMS_ROLES[role].name
-
-    for (const line of order.lines) {
-      for (const a of line.allocations) {
-        if (a.qty > 0) {
-          const res = move(nextPartidas, {
-            ts,
-            partidaId: a.partidaId,
-            from: 'reservado',
-            to: 'disponible',
-            qty: a.qty,
-            type: 'Liberación',
-            ref: `${orderId} (Cancelado)`,
-            user: userLabel,
-          })
-          nextPartidas = res.partidas
-          newMovs.push(res.movement)
-        }
-      }
+    if (order.invoice?.status === 'Emitida') {
+      toast.error('El pedido tiene factura vigente: anula primero la factura')
+      return
     }
 
-    setPartidas(nextPartidas)
-    setMovements((prev) => [...newMovs, ...prev])
+    const ts = nowTimestamp()
+    const released = releaseOrderStock(
+      partidas,
+      order,
+      `${orderId} (Cancelado)`,
+      ts
+    )
+    setPartidas(released.partidas)
+    setMovements((prev) => [...released.movements, ...prev])
     setOrders((prev) =>
       prev.map((o) =>
         o.id === orderId
@@ -779,19 +1332,86 @@ export function WmsProvider({ children }: { children: React.ReactNode }) {
     toast.info(`Pedido ${orderId} cancelado y stock liberado a disponible`)
   }
 
+  const updateInvoicePrefix: WmsContextType['updateInvoicePrefix'] = (
+    prefix,
+    patch
+  ) => {
+    setPrefixes((prev) =>
+      prev.map((p) => (p.prefix === prefix ? { ...p, ...patch } : p))
+    )
+  }
+
+  const addInvoicePrefix: WmsContextType['addInvoicePrefix'] = (
+    prefix,
+    description
+  ) => {
+    const clean = prefix.trim().toUpperCase()
+    if (!/^[A-Z]{1,6}$/.test(clean)) {
+      toast.error('El prefijo solo lleva letras (hasta 6), por ejemplo FV')
+      return false
+    }
+    if (prefixes.some((p) => p.prefix === clean)) {
+      toast.error(`El prefijo ${clean} ya existe`)
+      return false
+    }
+    setPrefixes((prev) => [
+      ...prev,
+      {
+        prefix: clean,
+        description: description.trim() || 'Prefijo de facturación',
+        nextNumber: 1,
+        active: true,
+      },
+    ])
+    toast.success(`Prefijo ${clean} habilitado`)
+    return true
+  }
+
+  const addPointOfSale: WmsContextType['addPointOfSale'] = ({
+    name,
+    warehouse: wh,
+    prefix,
+  }) => {
+    if (name.trim().length < 3) {
+      toast.error('Escribe el nombre del punto de venta')
+      return
+    }
+    setPointsOfSale((prev) => [
+      ...prev,
+      {
+        id: `PV-${String(prev.length + 1).padStart(2, '0')}`,
+        name: name.trim(),
+        warehouse: wh,
+        prefix,
+        active: true,
+      },
+    ])
+    toast.success(`Punto de venta «${name.trim()}» creado`)
+  }
+
+  const updatePointOfSale: WmsContextType['updatePointOfSale'] = (
+    id,
+    patch
+  ) => {
+    setPointsOfSale((prev) =>
+      prev.map((p) => (p.id === id ? { ...p, ...patch } : p))
+    )
+  }
+
   const reportDamage: WmsContextType['reportDamage'] = ({
     partidaId,
     qty,
     reason,
     evidence,
     claimableToSupplier,
+    photos,
   }) => {
     const p = partidas.find((x) => x.id === partidaId)
     if (!p) return
     try {
       const dmgId = `DMG-${304 + damages.length}`
       const ts = nowTimestamp()
-      const userLabel = WMS_ROLES[role].name
+      const userLabel = userName
       const res = move(partidas, {
         ts,
         partidaId,
@@ -813,6 +1433,7 @@ export function WmsProvider({ children }: { children: React.ReactNode }) {
         valueUSD: qty * unitCostOf(p.sku),
         reason,
         evidence,
+        photos: photos && photos.length > 0 ? photos : undefined,
         claimableToSupplier,
         reportedBy: userLabel,
         status: 'Pendiente',
@@ -822,7 +1443,9 @@ export function WmsProvider({ children }: { children: React.ReactNode }) {
       setDamages((prev) => [newDmg, ...prev])
       toast.warning(`Daño ${dmgId} registrado (${qty} uds)`)
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Error al registrar daño')
+      toast.error(
+        err instanceof Error ? err.message : 'Error al registrar daño'
+      )
     }
   }
 
@@ -840,7 +1463,7 @@ export function WmsProvider({ children }: { children: React.ReactNode }) {
     }
 
     const ts = nowTimestamp()
-    const userLabel = WMS_ROLES[role].name
+    const userLabel = userName
     const p = partidas.find((x) => x.id === dmg.partidaId)
     if (!p) return
 
@@ -940,7 +1563,7 @@ export function WmsProvider({ children }: { children: React.ReactNode }) {
     const cnt = counts.find((c) => c.id === countId)
     if (!cnt || cnt.status !== 'Programado') return
 
-    const userLabel = WMS_ROLES[role].name
+    const userLabel = userName
     const delta = countedQty - cnt.expectedQty
 
     if (delta === 0) {
@@ -1011,7 +1634,7 @@ export function WmsProvider({ children }: { children: React.ReactNode }) {
       return
     }
 
-    const userLabel = WMS_ROLES[role].name
+    const userLabel = userName
     const ts = nowTimestamp()
 
     if (approve) {
@@ -1075,7 +1698,7 @@ export function WmsProvider({ children }: { children: React.ReactNode }) {
     if (!p) return
     const claimId = `REC-${710 + claims.length}`
     const ts = nowTimestamp()
-    const userLabel = WMS_ROLES[role].name
+    const userLabel = userName
 
     const res = move(partidas, {
       ts,
@@ -1108,7 +1731,9 @@ export function WmsProvider({ children }: { children: React.ReactNode }) {
       },
       ...prev,
     ])
-    toast.success(`Devolución de cliente ${claimId} registrada en estado Reclamo`)
+    toast.success(
+      `Devolución de cliente ${claimId} registrada en estado Reclamo`
+    )
   }
 
   const advanceClaim: WmsContextType['advanceClaim'] = (claimId, action) => {
@@ -1116,7 +1741,7 @@ export function WmsProvider({ children }: { children: React.ReactNode }) {
     if (!clm || clm.status === 'Resuelto') return
 
     const ts = nowTimestamp()
-    const userLabel = WMS_ROLES[role].name
+    const userLabel = userName
     const p = partidas.find((x) => x.id === clm.partidaId)
 
     if (action === 'Enviar') {
@@ -1147,7 +1772,11 @@ export function WmsProvider({ children }: { children: React.ReactNode }) {
       setClaims((prev) =>
         prev.map((c) =>
           c.id === claimId
-            ? { ...c, status: 'Resuelto', resolution: 'Nota de crédito emitida' }
+            ? {
+                ...c,
+                status: 'Resuelto',
+                resolution: 'Nota de crédito emitida',
+              }
             : c
         )
       )
@@ -1170,7 +1799,11 @@ export function WmsProvider({ children }: { children: React.ReactNode }) {
       setClaims((prev) =>
         prev.map((c) =>
           c.id === claimId
-            ? { ...c, status: 'Resuelto', resolution: 'Reintegrado a disponible' }
+            ? {
+                ...c,
+                status: 'Resuelto',
+                resolution: 'Reintegrado a disponible',
+              }
             : c
         )
       )
@@ -1210,7 +1843,11 @@ export function WmsProvider({ children }: { children: React.ReactNode }) {
       setClaims((prev) =>
         prev.map((c) =>
           c.id === claimId
-            ? { ...c, status: 'Resuelto', resolution: `Pasado a daño (${dmgId})` }
+            ? {
+                ...c,
+                status: 'Resuelto',
+                resolution: `Pasado a daño (${dmgId})`,
+              }
             : c
         )
       )
@@ -1241,9 +1878,9 @@ export function WmsProvider({ children }: { children: React.ReactNode }) {
         qtySent: 0,
         qtyReceived: null,
         status: 'Solicitado',
-        carrier: 'Camión Plataforma #02',
+        carrier: 'Vehículo de carga #02',
         guideNumber: 'Pendiente emisión',
-        requestedBy: WMS_ROLES[role].name,
+        requestedBy: userName,
         approvedBy: 'Pendiente aprobación',
         notes: 'Abastecimiento entre bodegas',
       },
@@ -1256,7 +1893,7 @@ export function WmsProvider({ children }: { children: React.ReactNode }) {
     const t = transfers.find((x) => x.id === id)
     if (!t) return
     const ts = nowTimestamp()
-    const userLabel = WMS_ROLES[role].name
+    const userLabel = userName
 
     try {
       let nextPartidas = [...partidas]
@@ -1384,7 +2021,7 @@ export function WmsProvider({ children }: { children: React.ReactNode }) {
           if (nextStatus === 'Aprobado') {
             updated.approvedBy = userLabel
             updated.guideNumber =
-              'GDT-CL-' + Math.floor(890000 + Math.random() * 9000)
+              'GT-' + Math.floor(890000 + Math.random() * 9000)
           } else if (nextStatus === 'En tránsito') {
             updated.qtySent = item.qtyRequested
           } else if (nextStatus === 'Recibido total') {
@@ -1406,8 +2043,14 @@ export function WmsProvider({ children }: { children: React.ReactNode }) {
   return (
     <WmsContext.Provider
       value={{
+        user,
+        users,
         role,
+        switchUser,
         setRole,
+        createUser,
+        updateUser,
+        resetDemoData,
         scenario,
         setScenario,
         topology,
@@ -1434,13 +2077,24 @@ export function WmsProvider({ children }: { children: React.ReactNode }) {
         adjustments,
         transfers,
         buckets,
+        prefixes,
+        pointsOfSale,
+        updateInvoicePrefix,
+        addInvoicePrefix,
+        addPointOfSale,
+        updatePointOfSale,
         updateOperationalParams,
         createSku,
         updateSkuCatalog,
         addStockPartida,
         receive,
         createOrder,
-        importOrdersCsv,
+        previewInvoicesImport,
+        applyInvoicesImport,
+        suggestInvoiceNumber,
+        invoiceOrder,
+        voidInvoice,
+        nextRemission,
         prepareOrder,
         registerPickup,
         cancelOrder,

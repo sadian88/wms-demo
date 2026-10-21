@@ -26,13 +26,6 @@ import {
   SheetTrigger,
 } from '@/components/ui/sheet'
 import { useSidebar } from './ui/sidebar'
-import { useWms } from '@/context/wms-provider'
-import { WMS_ROLES, type RoleCode } from '@/features/wms/data/catalog'
-import {
-  TOPOLOGY_SCENARIOS,
-  type TopologyScenario,
-} from '@/features/wms/data/topology-data'
-import { Switch } from '@/components/ui/switch'
 
 export function ConfigDrawer() {
   const { setOpen } = useSidebar()
@@ -61,13 +54,12 @@ export function ConfigDrawer() {
       </SheetTrigger>
       <SheetContent className='flex flex-col'>
         <SheetHeader className='pb-0 text-start'>
-          <SheetTitle>Configuración y Contexto</SheetTitle>
+          <SheetTitle>Apariencia</SheetTitle>
           <SheetDescription>
-            Ajusta el escenario contratado (Casa Matriz / Almacenes / Bodegas), el perfil de usuario y la apariencia.
+            Tema, menú lateral y diseño de la pantalla.
           </SheetDescription>
         </SheetHeader>
         <div className='space-y-6 overflow-y-auto px-4'>
-          <WmsContextConfig />
           <ThemeConfig />
           <SidebarConfig />
           <LayoutConfig />
@@ -84,102 +76,6 @@ export function ConfigDrawer() {
         </SheetFooter>
       </SheetContent>
     </Sheet>
-  )
-}
-
-function WmsContextConfig() {
-  const {
-    role,
-    setRole,
-    scenario,
-    setScenario,
-    almacenes,
-    warehouses,
-    warehouse,
-    setWarehouse,
-    showRestricted,
-    setShowRestricted,
-  } = useWms()
-
-  return (
-    <div className='space-y-4 rounded-lg border bg-muted/30 p-3.5'>
-      <div>
-        <SectionTitle title='Plan / Estructura Contratada' className='mb-1.5' />
-        <select
-          value={scenario}
-          onChange={(e) => setScenario(e.target.value as TopologyScenario)}
-          className='h-9 w-full rounded-md border bg-background px-2.5 text-xs font-medium text-foreground focus:outline-none'
-        >
-          {Object.values(TOPOLOGY_SCENARIOS).map((sc) => (
-            <option key={sc.id} value={sc.id}>
-              {sc.title}
-            </option>
-          ))}
-        </select>
-        <p className='mt-1 text-[11px] text-muted-foreground'>
-          {TOPOLOGY_SCENARIOS[scenario]?.subtitle}
-        </p>
-      </div>
-
-      <div>
-        <SectionTitle title='Almacén / Bodega Activa' className='mb-1.5' />
-        <select
-          value={warehouse}
-          onChange={(e) => setWarehouse(e.target.value)}
-          className='h-9 w-full rounded-md border bg-background px-2.5 text-xs font-medium text-foreground focus:outline-none'
-        >
-          <option value='ALL'>Todas las bodegas</option>
-          {almacenes.map((alm) => (
-            <optgroup key={alm.id} label={`Almacén: ${alm.name}`}>
-              {almacenes.length > 1 && (
-                <option value={`ALM:${alm.id}`}>
-                  Todo {alm.name}
-                </option>
-              )}
-              {warehouses
-                .filter((w) => w.almacenId === alm.id)
-                .map((w) => (
-                  <option key={w.id} value={w.id}>
-                    {w.name} ({w.isDefaultTied ? 'Por defecto' : 'Adicional'})
-                  </option>
-                ))}
-            </optgroup>
-          ))}
-        </select>
-      </div>
-
-      <div>
-        <SectionTitle title='Perfil / Rol Operativo' className='mb-1.5' />
-        <select
-          value={role}
-          onChange={(e) => setRole(e.target.value as RoleCode)}
-          className='h-9 w-full rounded-md border bg-background px-2.5 text-xs font-medium text-foreground focus:outline-none'
-        >
-          {Object.values(WMS_ROLES).map((r) => (
-            <option key={r.code} value={r.code}>
-              [{r.code}] {r.name}
-            </option>
-          ))}
-        </select>
-        <p className='mt-1.5 text-[11px] text-muted-foreground'>
-          {WMS_ROLES[role]?.description}
-        </p>
-      </div>
-
-      <div className='flex items-center justify-between gap-2 border-t pt-2.5'>
-        <label
-          htmlFor='drawer-toggle-restricted'
-          className='cursor-pointer text-xs text-muted-foreground'
-        >
-          Mostrar pantallas bloqueadas (🔒)
-        </label>
-        <Switch
-          id='drawer-toggle-restricted'
-          checked={showRestricted}
-          onCheckedChange={setShowRestricted}
-        />
-      </div>
-    </div>
   )
 }
 

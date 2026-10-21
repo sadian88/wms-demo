@@ -1,42 +1,45 @@
-# Product
+# Producto
 
-## Register
+## Registro
 
-product
+Producto (herramienta de trabajo diaria, no de marketing).
 
-## Users
+## Usuarios
 
-Equipo operativo y administrativo de una **PyME mediana comercializadora y distribuidora de materiales de construcción** (cerámica, porcelanato, revestimientos, adhesivos, fragües y perfiles). Opera con **4 perfiles claros**: Administrador (`ADM`), Jefe de Bodega (`JB`), Operario de Bodega (`OPE`) y Gerencia (`GER`, solo lectura con aprobación de montos mayores).
+Equipo de una **distribuidora de cerámica, porcelanato, revestimientos y adhesivos**, con seis perfiles:
 
-## Product Purpose
+- **Operarios y jefes de bodega**: trabajan de pie, muchas veces con el celular, y necesitan pasos cortos y botones grandes.
+- **Asesores comerciales**: arman pedidos y quieren saber si hay stock y cuándo se entrega.
+- **Caja**: factura y registra el medio de pago.
+- **Gerencia y administración**: quieren ver rápido si lo facturado coincide con lo entregado.
 
-Plataforma esencial de gestión de bodegas (WMS) e inventario multi-bodega sin doble conteo, diseñada para eliminar el desconocimiento sobre dónde está la mercadería y responder en todo momento:
-- Qué hay **en existencia** (control por SKU, bodega y fecha de vencimiento FEFO).
-- Qué está **por entregar** mediante retiro en bodega (con carga manual o CSV y alerta de pedidos sin retirar por más de 7 días).
-- Qué está **dañado**, **por reclamar** (a proveedor o devoluciones de clientes), **rezagado** (≥ 60/90 días sin salida) o **perdido** (conteos ciegos y bajas/ajustes con aprobación dual en USD 300).
+## Propósito
 
-## Brand Personality
+Eliminar la brecha entre **lo que se factura y lo que sale de la bodega**, y reemplazar los cuadernos y sellos manuales por un registro con nombre de persona, hora y foto cuando hace falta.
 
-Preciso, liviano, sereno. Inspirado en la claridad funcional de **Linear (Light Mode)** y **Stripe Dashboard**: superficies planas en blanco puro, jerarquía tipográfica nítida, acento cobalto técnico reservado para acciones e indicadores clave, y gráficos limpios que reemplazan párrafos explicativos.
+Regla central: **sin factura vigente no hay entrega**. Todo lo facturado se concilia contra lo entregado.
 
-## Anti-references
+## Personalidad de marca
 
-- Interfaces oscuras pesadas o bloques negros dominantes que cansan la vista en jornadas largas.
-- Sobrecarga de texto, subtítulos redundantes y explicaciones de fórmulas visibles todo el tiempo.
-- Tarjetas anidadas dentro de tarjetas ("box-in-box clutter") o sombras difusas decorativas (`ghost-cards`).
-- Bordes laterales gruesos de colores (`border-left > 1px`) en alertas o tarjetas.
-- Tablas saturadas de 12+ columnas visibles por defecto sin apoyo gráfico ni divulgación progresiva.
+Claro, sereno y directo. Inspirado en Linear (modo claro) y Stripe Dashboard: superficies planas, jerarquía tipográfica nítida, acento cobalto reservado a las acciones.
 
-## Design Principles
+## Principios de diseño
 
-1. **Gráfico Primero, Tabla Después (Visual-First Scanning)**: Toda pantalla abre con una síntesis gráfica (anillos SVG, barras de progreso, bullet charts o embudos de flujo) que responde "¿cómo estamos hoy?" en menos de 3 segundos.
-2. **Divulgación Progresiva (Progressive Disclosure)**: Las fórmulas técnicas, desgloses de 8 estados y metadatos secundarios viven ocultos tras desplegables limpios (`Ver desglose`) o vistas de detalle, manteniendo la vista principal despejada.
-3. **Arquitectura Plana de 1px (Flat & Weightless)**: Cero sombras decorativas. La estructura se define mediante aire generoso, contraste sutil entre blanco puro (`#FFFFFF`) y gris alabastro frío (`#F7F8FA`), y líneas divisoras de `1px`.
-4. **Cero Redundancia Textual**: Si un título o un gráfico ya comunica el dato, se elimina el subtítulo explicativo. Máximo 3 puntos de datos por bloque visual.
-5. **Color Semántico con Propósito (10% Rule)**: El 90% de la interfaz es neutra y luminosa; el color solo aparece para indicar acción primaria (Cobalto) o estado operativo (Esmeralda = óptimo, Ámbar = atención, Coral = crítico).
+1. **Una idea por pantalla.** Encabezado, una banda de resumen y una lista. Lo demás, detrás de un clic.
+2. **Flujos guiados donde hay riesgo.** Recepción y entrega van de un paso a la vez, con validaciones que explican qué hacer.
+3. **Móvil primero.** Objetivos táctiles de 44 px; sin scroll horizontal de página.
+4. **Color con propósito.** Verde = bien, ámbar = atención, coral = crítico, cobalto = acción. Nunca solo color: siempre con texto.
+5. **Lenguaje de la operación.** «Factura», «remisión», «NIT», «entrega en bodega», «cajas» y «sacos» en lugar de jerga técnica.
 
-## Accessibility & Inclusion
+## Lo que evitamos
 
-- Cumplimiento estricto **WCAG AA / AAA**: texto principal con contraste `≥ 11:1` sobre fondo blanco y texto secundario `≥ 4.8:1`.
-- Soporte completo para `@media (prefers-reduced-motion: reduce)`.
-- Indicadores de estado que nunca dependen únicamente del color (siempre acompañados de forma, etiqueta breve o proporción gráfica).
+- Tablas de más de 5 columnas visibles y tarjetas dentro de tarjetas.
+- Párrafos explicativos bajo cada título y texto menor a 12 px.
+- Bordes laterales gruesos, degradados y sombras decorativas.
+- Datos de otros países (RUT, SII, direcciones de otra ciudad).
+
+## Accesibilidad
+
+- Contraste AA como mínimo; texto principal de 14 px o más.
+- Cada campo con etiqueta asociada; botones de solo ícono con nombre accesible.
+- Respeto a `prefers-reduced-motion`.

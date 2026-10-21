@@ -1,1073 +1,1070 @@
-import { useState } from 'react'
-import {
-  ArrowDownLeft,
-  ArrowRight,
-  ArrowUpRight,
-  Boxes,
-  Check,
-  Grid,
-  History,
-  LayoutList,
-  PackagePlus,
-  Plus,
-  Ruler,
-  Scale,
-  ShieldAlert,
-} from 'lucide-react'
-import { toast } from 'sonner'
-import { Badge } from '@/components/ui/badge'
+import { useMemo, useState } from 'react'
+import { useNavigate } from '@tanstack/react-router'
+import { ChevronDown, Download, PackagePlus, Search } from 'lucide-react'
+import { downloadCsv } from '@/lib/csv'
+import { cn } from '@/lib/utils'
+import { useWms } from '@/context/wms-provider'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import { Input } from '@/components/ui/input'
-import { Switch } from '@/components/ui/switch'
-import { useWms } from '@/context/wms-provider'
 import {
-  CategoryAvatar,
-  CategoryBadge,
-} from '@/features/wms/components/visual/category-icons'
+  Field,
+  FilterTabs,
+  ListRow,
+  SELECT_CLASS,
+  Section,
+  StatusPill,
+  TONE,
+} from '@/features/wms/components/kit'
+import { copCompact, plural } from '@/features/wms/components/visual/format'
+import {
+  MOVEMENT_ICON,
+  movementSigned,
+  movementTone,
+  qtyWithUnit,
+  skuUnit,
+  unitWord,
+} from '@/features/wms/components/visual/movement-meta'
 import { PartidaDetailDrawer } from '@/features/wms/components/visual/partida-detail-drawer'
-import { StockCompositionBar } from '@/features/wms/components/visual/stock-composition-bar'
 import {
-  EXPIRY_WARN_DAYS,
-  daysBetween,
+  STOCK_STATE_META,
+  partidaAlerts,
+} from '@/features/wms/components/visual/stock-states'
+import { SummaryStrip } from '@/features/wms/components/visual/summary-strip'
+import { findScreenBySlug } from '@/features/wms/data/catalog'
+import { TODAY_STR } from '@/features/wms/domain/clock'
+import {
   formatQtyWithEquivalent,
   totalPhysicalPartida,
+  type Movement,
   type MovementType,
-  type Partida,
-  type StandardUnit,
-  type StockState,
+  type SkuItem,
 } from '@/features/wms/domain/inventory'
-import { EmptyState, KpiCard, PageHeader, cop, nf } from './ui-helpers'
+import { EmptyState, PageHeader, nf, shortDate } from './ui-helpers'
 
-const TODAY_STR = '2026-10-20'
+const PAGE_SIZE = 50
 
-const STATE_LABELS: Record<StockState, string> = {
-  disponible: 'Disponible',
-  reservado: 'Reservado',
-  danado: 'Dañado',
-  reclamo: 'En reclamo',
-  transito: 'En tránsito',
+/** Nombre de bodega sin el prefijo «Bodega», para espacios angostos. */
+const shortWarehouse = (name: string) => name.replace(/^Bodega /, '')
+
+/** Separa «420 cajas (~604,8 m²)» en cantidad y equivalencia. */
+function qtyParts(qty: number, sku?: SkuItem) {
+  const full = formatQtyWithEquivalent(qty, sku)
+  const m = full.match(/^(.*?) \(~(.*)\)$/)
+  return m ? { main: m[1], equiv: `≈ ${m[2]}` } : { main: full, equiv: null }
 }
 
-// 2.1 Existencias
+/* -------------------------------------------------------------------------- */
+/*  2.1 Existencias                                                            */
+/* -------------------------------------------------------------------------- */
+
+type AlertTab = 'all' | 'expiring' | 'stale' | 'problem'
+
 export function InventoryScreen({
   onNavigateToOrder,
 }: {
-  onNavigateToOrder?: (orderId: string) => void
+  onNavigateToOrder: () => void
 }) {
   const {
     skus,
     partidas,
     warehouses,
     warehouse,
-    buckets,
-    matchesScope,
+    role,
     isReadOnly,
-    createSku,
-    addStockPartida,
+    matchesScope,
+    hasAccess,
+    canActOnScreen,
   } = useWms()
+  const navigate = useNavigate()
+  const goToSlug = (slug: string) =>
+    navigate({ to: '/wms/$code', params: { code: slug } })
+
   const [query, setQuery] = useState('')
-  const [stateFilter, setStateFilter] = useState<'ALL' | StockState>('ALL')
-  const [onlyExpiring, setOnlyExpiring] = useState(false)
-  const [viewMode, setViewMode] = useState<'grid' | 'table'>('grid')
-  const [selectedPartida, setSelectedPartida] = useState<Partida | null>(null)
-  const [drawerOpen, setDrawerOpen] = useState(false)
+  const [whFilter, setWhFilter] = useState('ALL')
+  const [categoryFilter, setCategoryFilter] = useState('ALL')
+  const [tab, setTab] = useState<AlertTab>('all')
+  const [limit, setLimit] = useState(PAGE_SIZE)
+  const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [stockOpen, setStockOpen] = useState(false)
 
-  // Modal Crear Producto
-  const [skuModalOpen, setSkuModalOpen] = useState(false)
-  const [skuFormCode, setSkuFormCode] = useState('')
-  const [skuFormName, setSkuFormName] = useState('')
-  const [skuFormCategory, setSkuFormCategory] = useState('Porcelanatos')
-  const [skuFormBaseUnit, setSkuFormBaseUnit] = useState<StandardUnit>('Caja')
-  const [skuFormCost, setSkuFormCost] = useState('85000')
-  const [skuFormExpiry, setSkuFormExpiry] = useState(false)
-  const [skuHasConversion, setSkuHasConversion] = useState(true)
-  const [skuConvTargetUnit, setSkuConvTargetUnit] = useState<StandardUnit>('m²')
-  const [skuConvFactor, setSkuConvFactor] = useState('1.44')
+  const showCost = role !== 'ASE'
+  const screen = findScreenBySlug('2-1').scr
+  const canAddStock = !isReadOnly && canActOnScreen(screen)
 
-  // Modal Agregar Stock a Bodega
-  const [addStockModalOpen, setAddStockModalOpen] = useState(false)
-  const [stockSku, setStockSku] = useState(skus[0]?.sku ?? 'POR-60120-CAL')
-  const [stockWh, setStockWh] = useState(
-    warehouse !== 'ALL' && !warehouse.startsWith('ALM:')
-      ? warehouse
-      : warehouses[0]?.id ?? 'BOD-CEN-01'
+  const skuMap = useMemo(() => new Map(skus.map((s) => [s.sku, s])), [skus])
+  const whName = (id: string) => warehouses.find((w) => w.id === id)?.name ?? id
+  const scopeWarehouses = warehouses.filter((w) => matchesScope(w.id))
+  const categories = [...new Set(skus.map((s) => s.category))].sort((a, b) =>
+    a.localeCompare(b, 'es')
   )
-  const [stockQty, setStockQty] = useState('50')
-  const [stockSupplier, setStockSupplier] = useState('Ceramix Nacional')
-  const [stockExpiry, setStockExpiry] = useState('')
-  const [stockDocRef, setStockDocRef] = useState('INV-INICIAL-2026')
 
-  const skuMap = new Map(skus.map((s) => [s.sku, s]))
+  const rows = partidas
+    .filter((p) => matchesScope(p.warehouse) && totalPhysicalPartida(p) > 0)
+    .map((p) => ({ p, sku: skuMap.get(p.sku), alerts: partidaAlerts(p) }))
+    .sort(
+      (a, b) =>
+        (a.sku?.name ?? a.p.sku).localeCompare(b.sku?.name ?? b.p.sku, 'es') ||
+        a.p.warehouse.localeCompare(b.p.warehouse) ||
+        (a.p.expiry ?? '9').localeCompare(b.p.expiry ?? '9')
+    )
 
-  const handleCreateSkuSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
-    const cost = Number(skuFormCost)
-    if (!skuFormCode.trim() || !skuFormName.trim()) {
-      toast.error('El código SKU y el nombre del producto son requeridos')
-      return
-    }
-    if (isNaN(cost) || cost <= 0) {
-      toast.error('El costo unitario debe ser positivo')
-      return
-    }
-    const conversions =
-      skuHasConversion && Number(skuConvFactor) > 0
-        ? [
-            {
-              targetUnit: skuConvTargetUnit,
-              factor: Number(skuConvFactor),
-              description: `1 ${skuFormBaseUnit} = ${skuConvFactor} ${skuConvTargetUnit}`,
-            },
-          ]
-        : []
+  const q = query.trim().toLowerCase()
+  const base = rows.filter(({ p, sku }) => {
+    if (whFilter !== 'ALL' && p.warehouse !== whFilter) return false
+    if (categoryFilter !== 'ALL' && sku?.category !== categoryFilter)
+      return false
+    if (!q) return true
+    const hay = `${p.id} ${p.sku} ${sku?.name ?? ''} ${sku?.category ?? ''} ${whName(p.warehouse)} ${p.supplier}`
+    return hay.toLowerCase().includes(q)
+  })
 
-    const ok = createSku({
-      sku: skuFormCode.trim().toUpperCase(),
-      name: skuFormName.trim(),
-      category: skuFormCategory,
-      unitMeasure: skuFormBaseUnit,
-      unitCost: cost,
-      requiresExpiry: skuFormExpiry,
-      conversions,
-    })
-    if (ok) {
-      setStockSku(skuFormCode.trim().toUpperCase())
-      setSkuModalOpen(false)
-    }
+  const hasAlert = (key: string) => (r: (typeof rows)[number]) =>
+    r.alerts.some((a) => a.key === key)
+  const isProblem = (r: (typeof rows)[number]) =>
+    r.p.qty.danado + r.p.qty.reclamo > 0
+  const tabFilters: Record<AlertTab, (r: (typeof rows)[number]) => boolean> = {
+    all: () => true,
+    expiring: hasAlert('expiry'),
+    stale: hasAlert('stale'),
+    problem: isProblem,
+  }
+  const list = base.filter(tabFilters[tab])
+  const visible = list.slice(0, limit)
+
+  const sumBase = (fn: (r: (typeof rows)[number]) => number) =>
+    base.reduce((acc, r) => acc + fn(r), 0)
+  const disponible = sumBase((r) => r.p.qty.disponible)
+  const disponibleCost = sumBase(
+    (r) => r.p.qty.disponible * (r.sku?.unitCost ?? 0)
+  )
+  const reservado = sumBase((r) => r.p.qty.reservado)
+  const conProblema = sumBase((r) => r.p.qty.danado + r.p.qty.reclamo)
+  const riskRows = base.filter(
+    (r) => hasAlert('expiry')(r) || hasAlert('stale')(r)
+  )
+  const enRiesgo = riskRows.reduce((acc, r) => acc + r.p.qty.disponible, 0)
+
+  const resetFilters = () => {
+    setQuery('')
+    setWhFilter('ALL')
+    setCategoryFilter('ALL')
+    setTab('all')
   }
 
-  const handleAddStockSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
-    const q = Number(stockQty)
-    if (isNaN(q) || q <= 0) {
-      toast.error('La cantidad a ingresar debe ser mayor a 0')
-      return
-    }
-    const skuObj = skuMap.get(stockSku)
-    if (skuObj?.requiresExpiry && !stockExpiry) {
-      toast.error('Este producto requiere fecha de vencimiento (FEFO)')
-      return
-    }
-
-    addStockPartida({
-      sku: stockSku,
-      warehouse: stockWh,
-      qty: q,
-      supplier: stockSupplier.trim() || 'Proveedor General',
-      expiry: stockExpiry || null,
-      docRef: stockDocRef.trim() || 'INGRESO-DIRECTO',
-    })
-    setAddStockModalOpen(false)
+  const exportCsv = () => {
+    const header = [
+      'Partida',
+      'SKU',
+      'Producto',
+      'Categoría',
+      'Bodega',
+      'Unidad',
+      'Disponible',
+      'Reservado',
+      'En tránsito',
+      'En reclamo',
+      'Dañado',
+      'Vencimiento',
+      ...(showCost ? ['Costo unitario', 'Valor a costo'] : []),
+    ]
+    const body = list.map(({ p, sku }) => [
+      p.id,
+      p.sku,
+      sku?.name ?? p.sku,
+      sku?.category ?? '',
+      whName(p.warehouse),
+      sku?.unitMeasure ?? '',
+      p.qty.disponible,
+      p.qty.reservado,
+      p.qty.transito,
+      p.qty.reclamo,
+      p.qty.danado,
+      p.expiry ?? '',
+      ...(showCost
+        ? [sku?.unitCost ?? 0, totalPhysicalPartida(p) * (sku?.unitCost ?? 0)]
+        : []),
+    ])
+    downloadCsv(`existencias-${TODAY_STR}.csv`, [header, ...body])
   }
 
-  const list = partidas
-    .filter((p) => matchesScope(p.warehouse))
-    .filter((p) => {
-      if (stateFilter === 'ALL') return totalPhysicalPartida(p) > 0
-      return p.qty[stateFilter] > 0
-    })
-    .filter((p) => {
-      if (!onlyExpiring) return true
-      if (!p.expiry) return false
-      return daysBetween(TODAY_STR, p.expiry) <= EXPIRY_WARN_DAYS
-    })
-    .filter((p) => {
-      const s = skuMap.get(p.sku)
-      const haystack = `${p.id} ${p.sku} ${s?.name ?? ''} ${s?.category ?? ''} ${p.warehouse} ${p.supplier}`.toLowerCase()
-      return haystack.includes(query.toLowerCase())
-    })
-
-  const handleOpenDetail = (p: Partida) => {
-    setSelectedPartida(p)
-    setDrawerOpen(true)
-  }
+  const actions = canAddStock ? (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button
+          type='button'
+          variant='outline'
+          className='h-10 gap-2 shadow-none'
+        >
+          Acciones
+          <ChevronDown className='size-4' />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align='end' className='min-w-56'>
+        <DropdownMenuItem
+          className='min-h-10'
+          onSelect={() => setStockOpen(true)}
+        >
+          <PackagePlus className='size-4' />
+          Ingresar stock directo
+        </DropdownMenuItem>
+        <DropdownMenuItem className='min-h-10' onSelect={exportCsv}>
+          <Download className='size-4' />
+          Descargar existencias (CSV)
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  ) : (
+    <Button
+      type='button'
+      variant='outline'
+      className='h-10 gap-2 shadow-none'
+      onClick={exportCsv}
+    >
+      <Download className='size-4' />
+      Descargar CSV
+    </Button>
+  )
 
   return (
-    <div className='space-y-6'>
-      <PageHeader
-        title='Existencias por partida'
-        subtitle='Control por SKU, bodega y fecha de vencimiento. Haz clic en cualquier partida para ver su Ficha 360°.'
-        actions={
-          <div className='flex flex-wrap items-center gap-2'>
-            {!isReadOnly && (
-              <>
-                <Button
-                  size='sm'
-                  variant='outline'
-                  className='h-7 text-xs gap-1.5'
-                  onClick={() => {
-                    setSkuFormCode('')
-                    setSkuFormName('')
-                    setSkuFormCost('85000')
-                    setSkuModalOpen(true)
-                  }}
-                >
-                  <Plus className='size-3.5' />
-                  + Nuevo Producto
-                </Button>
-                <Button
-                  size='sm'
-                  className='h-7 text-xs gap-1.5 shadow-xs'
-                  onClick={() => setAddStockModalOpen(true)}
-                >
-                  <PackagePlus className='size-3.5' />
-                  + Agregar Stock a Bodega
-                </Button>
-              </>
-            )}
+    <div className='space-y-5 sm:space-y-6'>
+      <PageHeader title='Existencias' actions={actions} />
 
-            <div className='flex items-center gap-1.5 rounded-lg border bg-muted/40 p-1'>
-              <Button
-                variant={viewMode === 'grid' ? 'default' : 'ghost'}
-                size='sm'
-                className='h-7 px-2.5 text-xs'
-                onClick={() => setViewMode('grid')}
-              >
-                <Grid className='mr-1.5 size-3.5' />
-                Tarjetas
-              </Button>
-              <Button
-                variant={viewMode === 'table' ? 'default' : 'ghost'}
-                size='sm'
-                className='h-7 px-2.5 text-xs'
-                onClick={() => setViewMode('table')}
-              >
-                <LayoutList className='mr-1.5 size-3.5' />
-                Tabla
-              </Button>
-            </div>
-          </div>
-        }
+      <SummaryStrip
+        items={[
+          {
+            label: 'Disponible',
+            value: nf(disponible),
+            unit: 'unidades',
+            hint: showCost
+              ? `${copCompact(disponibleCost)} a costo`
+              : plural(base.length, 'partida', 'partidas'),
+          },
+          {
+            label: 'Reservado',
+            value: nf(reservado),
+            unit: 'unidades',
+            hint: 'Comprometido en pedidos',
+          },
+          {
+            label: 'Daño o reclamo',
+            value: nf(conProblema),
+            unit: 'unidades',
+            hint: conProblema > 0 ? 'Pendiente de decisión' : 'Sin novedades',
+            tone: conProblema > 0 ? 'warning' : undefined,
+          },
+          {
+            label: 'En riesgo',
+            value: nf(enRiesgo),
+            unit: 'unidades',
+            hint:
+              riskRows.length > 0
+                ? `${plural(riskRows.length, 'partida', 'partidas')} por vencer o rezagadas`
+                : 'Nada por vencer ni rezagado',
+            tone: enRiesgo > 0 ? 'warning' : undefined,
+          },
+        ]}
       />
 
-      {/* KPI Cards */}
-      <div className='grid grid-cols-2 gap-3 lg:grid-cols-4'>
-        <KpiCard
-          label='Disponible para venta'
-          value={`${nf(buckets.enExistencia.units)} uds`}
-          sub={cop(buckets.enExistencia.valueCOP ?? buckets.enExistencia.valueUSD)}
-        />
-        <KpiCard
-          label='Reservado (por entregar)'
-          value={`${nf(buckets.porEntregar.units)} uds`}
-          sub={cop(buckets.porEntregar.valueCOP ?? buckets.porEntregar.valueUSD)}
-        />
-        <KpiCard
-          label='Dañado + En reclamo'
-          value={`${nf(buckets.danada.units + buckets.porReclamar.units)} uds`}
-          sub={cop(
-            (buckets.danada.valueCOP ?? buckets.danada.valueUSD) +
-              (buckets.porReclamar.valueCOP ?? buckets.porReclamar.valueUSD)
+      <div className='space-y-3'>
+        <div
+          className={cn(
+            'grid gap-2',
+            scopeWarehouses.length > 1
+              ? 'sm:grid-cols-[minmax(0,1fr)_14rem_14rem]'
+              : 'sm:grid-cols-[minmax(0,1fr)_14rem]'
           )}
-          tone={
-            buckets.danada.units + buckets.porReclamar.units > 0
-              ? 'text-destructive'
-              : undefined
-          }
-        />
-        <KpiCard
-          label='Stock físico total'
-          value={`${nf(buckets.enExistencia.totalPhysicalUnits)} uds`}
-          sub={cop(buckets.enExistencia.totalPhysicalCOP ?? buckets.enExistencia.totalPhysicalUSD)}
-        />
-      </div>
-
-      {/* Search and Filters */}
-      <div className='flex flex-wrap items-center gap-2.5'>
-        <Input
-          className='h-8 w-72 text-xs'
-          placeholder='Buscar SKU, categoría, partida, proveedor…'
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-        />
-        <select
-          aria-label='Filtrar por estado'
-          className='h-8 rounded-md border bg-background px-2.5 text-xs'
-          value={stateFilter}
-          onChange={(e) => setStateFilter(e.target.value as 'ALL' | StockState)}
         >
-          <option value='ALL'>Todos los estados con stock</option>
-          {Object.entries(STATE_LABELS).map(([k, label]) => (
-            <option key={k} value={k}>
-              Con stock en: {label}
-            </option>
-          ))}
-        </select>
-        <label className='flex cursor-pointer items-center gap-1.5 rounded-md border bg-card px-2.5 py-1.5 text-xs select-none'>
-          <input
-            type='checkbox'
-            checked={onlyExpiring}
-            onChange={(e) => setOnlyExpiring(e.target.checked)}
-            className='rounded'
-          />
-          Por vencer (≤ {EXPIRY_WARN_DAYS} días)
-        </label>
-        <span className='ms-auto text-xs text-muted-foreground'>
-          {list.length} partidas activas
-        </span>
+          <div className='relative'>
+            <Search
+              className='pointer-events-none absolute start-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground'
+              aria-hidden
+            />
+            <Input
+              type='search'
+              aria-label='Buscar producto, SKU, partida o proveedor'
+              placeholder='Buscar producto o SKU'
+              value={query}
+              onChange={(e) => {
+                setQuery(e.target.value)
+                setLimit(PAGE_SIZE)
+              }}
+              className='h-11 ps-9 text-base sm:h-10 sm:text-sm'
+            />
+          </div>
+          {scopeWarehouses.length > 1 && (
+            <select
+              aria-label='Filtrar por bodega'
+              value={whFilter}
+              onChange={(e) => setWhFilter(e.target.value)}
+              className={cn(SELECT_CLASS, 'h-11 sm:h-10')}
+            >
+              <option value='ALL'>Todas las bodegas</option>
+              {scopeWarehouses.map((w) => (
+                <option key={w.id} value={w.id}>
+                  {shortWarehouse(w.name)}
+                </option>
+              ))}
+            </select>
+          )}
+          <select
+            aria-label='Filtrar por categoría'
+            value={categoryFilter}
+            onChange={(e) => setCategoryFilter(e.target.value)}
+            className={cn(SELECT_CLASS, 'h-11 sm:h-10')}
+          >
+            <option value='ALL'>Todas las categorías</option>
+            {categories.map((c) => (
+              <option key={c} value={c}>
+                {c}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <FilterTabs<AlertTab>
+          value={tab}
+          onChange={(v) => {
+            setTab(v)
+            setLimit(PAGE_SIZE)
+          }}
+          options={[
+            { id: 'all', label: 'Todas', count: base.length },
+            {
+              id: 'expiring',
+              label: 'Por vencer',
+              count: base.filter(tabFilters.expiring).length,
+            },
+            {
+              id: 'stale',
+              label: 'Rezagadas',
+              count: base.filter(tabFilters.stale).length,
+            },
+            {
+              id: 'problem',
+              label: 'Con daño o reclamo',
+              count: base.filter(tabFilters.problem).length,
+            },
+          ]}
+        />
       </div>
 
-      {/* View Mode: Grid (Cards enriquecidas) */}
-      {viewMode === 'grid' ? (
-        <div className='grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3'>
-          {list.map((p) => {
-            const s = skuMap.get(p.sku)
-            const phys = totalPhysicalPartida(p)
-            const valCOP = phys * (s?.unitCost ?? 0)
-            const daysToExp = p.expiry
-              ? daysBetween(TODAY_STR, p.expiry)
-              : null
-            const expSoon =
-              daysToExp !== null && daysToExp <= EXPIRY_WARN_DAYS
-            const daysSinceLast = daysBetween(p.lastOutAt, TODAY_STR)
-
-            return (
-              <div
-                key={p.id}
-                onClick={() => handleOpenDetail(p)}
-                className='group relative flex flex-col justify-between rounded-xl border bg-card p-4 transition-all hover:border-primary/50 hover:shadow-md cursor-pointer'
+      <Section flush>
+        {visible.length === 0 ? (
+          <EmptyState
+            title='No hay partidas con esos filtros'
+            text='Quita algún filtro o busca por otro nombre o código.'
+            action={
+              <Button
+                type='button'
+                variant='outline'
+                className='mt-2 h-10'
+                onClick={resetFilters}
               >
-                <div>
-                  {/* Card Header with Category Avatar and Partida ID */}
-                  <div className='flex items-start justify-between gap-3'>
-                    <div className='flex items-center gap-2.5 min-w-0'>
-                      <CategoryAvatar
-                        category={s?.category ?? 'Otros'}
-                        size='sm'
-                      />
-                      <div className='min-w-0'>
-                        <div className='flex items-center gap-1.5'>
-                          <span className='font-mono text-xs font-bold text-primary'>
-                            {p.id}
-                          </span>
-                          <span className='text-[10px] text-muted-foreground'>
-                            · {p.warehouse}
-                          </span>
+                Limpiar filtros
+              </Button>
+            }
+          />
+        ) : (
+          <>
+            {/* Escritorio: tabla de 5 columnas */}
+            <table className='hidden w-full text-sm xl:table'>
+              <thead>
+                <tr className='border-b text-start text-muted-foreground'>
+                  <th scope='col' className='px-5 py-3 text-start font-medium'>
+                    Producto
+                  </th>
+                  <th scope='col' className='px-3 py-3 text-start font-medium'>
+                    Bodega
+                  </th>
+                  <th scope='col' className='px-3 py-3 text-start font-medium'>
+                    Disponible
+                  </th>
+                  <th scope='col' className='px-3 py-3 text-start font-medium'>
+                    Reservado
+                  </th>
+                  <th scope='col' className='px-5 py-3 text-start font-medium'>
+                    Estado
+                  </th>
+                </tr>
+              </thead>
+              <tbody className='divide-y'>
+                {visible.map(({ p, sku, alerts }) => {
+                  const disp = qtyParts(p.qty.disponible, sku)
+                  return (
+                    <tr
+                      key={p.id}
+                      onClick={() => setSelectedId(p.id)}
+                      className='cursor-pointer align-top transition-colors hover:bg-accent/60'
+                    >
+                      <td className='px-5 py-3.5'>
+                        <button
+                          type='button'
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            setSelectedId(p.id)
+                          }}
+                          className='block max-w-sm text-start font-medium hover:underline focus-visible:underline focus-visible:outline-none'
+                        >
+                          {sku?.name ?? p.sku}
+                        </button>
+                        <div className='mt-0.5 text-muted-foreground'>
+                          {p.sku} · Partida {p.id}
                         </div>
-                        <h4 className='text-xs font-semibold leading-tight text-foreground truncate mt-0.5'>
-                          {s?.name ?? p.sku}
-                        </h4>
-                      </div>
-                    </div>
-                  </div>
+                      </td>
+                      <td className='px-3 py-3.5'>
+                        {shortWarehouse(whName(p.warehouse))}
+                      </td>
+                      <td className='px-3 py-3.5 whitespace-nowrap tabular-nums'>
+                        {p.qty.disponible > 0 ? (
+                          <>
+                            <div className='font-medium'>{disp.main}</div>
+                            {disp.equiv && (
+                              <div className='whitespace-nowrap text-muted-foreground'>
+                                {disp.equiv}
+                              </div>
+                            )}
+                          </>
+                        ) : (
+                          <span className='text-muted-foreground'>—</span>
+                        )}
+                      </td>
+                      <td className='px-3 py-3.5 tabular-nums'>
+                        {p.qty.reservado > 0 ? (
+                          qtyWithUnit(p.qty.reservado, skuUnit(sku))
+                        ) : (
+                          <span className='text-muted-foreground'>—</span>
+                        )}
+                      </td>
+                      <td className='px-5 py-3.5'>
+                        {alerts.length > 0 ? (
+                          <div className='flex flex-wrap gap-1.5'>
+                            {alerts.map((a) => (
+                              <StatusPill key={a.key} tone={a.tone}>
+                                {a.label}
+                              </StatusPill>
+                            ))}
+                          </div>
+                        ) : (
+                          <span className='text-muted-foreground'>—</span>
+                        )}
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
 
-                  {/* Badges Bar */}
-                  <div className='mt-2.5 flex flex-wrap items-center gap-1.5'>
-                    <CategoryBadge
-                      category={s?.category ?? 'Otros'}
-                      className='text-[9px] py-0 px-1.5'
-                    />
-                    {expSoon && (
-                      <Badge variant='destructive' className='text-[9px] py-0'>
-                        Vence en {daysToExp}d
-                      </Badge>
-                    )}
-                    {daysSinceLast >= 60 && (
-                      <Badge variant='outline' className='text-[9px] py-0 border-amber-500/50 text-amber-600'>
-                        Rezagada (hace {daysSinceLast}d)
-                      </Badge>
-                    )}
-                  </div>
-
-                  {/* Stock Composition Horizontal Bar */}
-                  <div className='mt-4 space-y-1.5'>
-                    <div className='flex items-center justify-between text-xs'>
-                      <span className='text-[11px] text-muted-foreground'>
-                        Composición física:
-                      </span>
-                      <span className='font-bold tabular-nums text-foreground'>
-                        {formatQtyWithEquivalent(phys, s)}
-                      </span>
-                    </div>
-                    <StockCompositionBar
-                      qty={p.qty}
-                      totalPhysical={phys}
-                      height='sm'
-                    />
-                    <div className='flex items-center justify-between text-[10px] text-muted-foreground pt-0.5'>
-                      <span className='text-emerald-600 dark:text-emerald-400 font-medium'>
-                        Disp: {formatQtyWithEquivalent(p.qty.disponible, s)}
-                      </span>
-                      <span className='text-blue-600 dark:text-blue-400 font-medium'>
-                        Res: {nf(p.qty.reservado)}
-                      </span>
-                      {p.qty.danado + p.qty.reclamo > 0 && (
-                        <span className='text-rose-600 font-medium'>
-                          Inc: {nf(p.qty.danado + p.qty.reclamo)}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Footer with Valuation and Drawer trigger */}
-                <div className='mt-4 flex items-center justify-between border-t pt-2.5 text-xs'>
-                  <span className='font-bold tabular-nums text-foreground'>
-                    {cop(valCOP)}
-                  </span>
-                  <span className='text-[11px] text-primary group-hover:underline flex items-center gap-1 font-medium'>
-                    Ver Ficha 360° <ArrowRight className='size-3' />
-                  </span>
-                </div>
-              </div>
-            )
-          })}
-        </div>
-      ) : (
-        /* View Mode: Compact Table with Micro-Graphs */
-        <div className='overflow-x-auto rounded-xl border bg-card shadow-xs'>
-          <table className='w-full text-xs'>
-            <thead className='border-b bg-muted/40 text-left text-muted-foreground'>
-              <tr>
-                <th className='px-3.5 py-3 font-semibold'>Producto / Categoría</th>
-                <th className='px-3.5 py-3 font-semibold'>Partida · Bodega</th>
-                <th className='px-3.5 py-3 font-semibold w-48'>Composición Stock</th>
-                <th className='px-3.5 py-3 font-semibold'>Disponible</th>
-                <th className='px-3.5 py-3 font-semibold'>Reservado</th>
-                <th className='px-3.5 py-3 font-semibold'>Vencimiento</th>
-                <th className='px-3.5 py-3 text-right font-semibold'>Valor Físico</th>
-              </tr>
-            </thead>
-            <tbody className='divide-y'>
-              {list.map((p) => {
-                const s = skuMap.get(p.sku)
-                const phys = totalPhysicalPartida(p)
-                const valCOP = phys * (s?.unitCost ?? 0)
-                const daysToExp = p.expiry
-                  ? daysBetween(TODAY_STR, p.expiry)
-                  : null
-                const expSoon =
-                  daysToExp !== null && daysToExp <= EXPIRY_WARN_DAYS
-
+            {/* Celular y tableta: filas apiladas */}
+            <ul className='divide-y xl:hidden'>
+              {visible.map(({ p, sku, alerts }) => {
+                const disp = qtyParts(p.qty.disponible, sku)
                 return (
-                  <tr
-                    key={p.id}
-                    onClick={() => handleOpenDetail(p)}
-                    className='hover:bg-muted/30 cursor-pointer transition-colors'
-                  >
-                    <td className='px-3.5 py-2.5'>
-                      <div className='flex items-center gap-2'>
-                        <CategoryAvatar
-                          category={s?.category ?? 'Otros'}
-                          size='sm'
-                        />
-                        <div className='min-w-0'>
-                          <div className='font-semibold text-foreground truncate max-w-xs'>
-                            {s?.name ?? p.sku}
-                          </div>
-                          <div className='text-[10px] text-muted-foreground font-mono'>
-                            {p.sku}
-                          </div>
-                        </div>
+                  <li key={p.id}>
+                    <ListRow onClick={() => setSelectedId(p.id)}>
+                      <div className='font-medium'>{sku?.name ?? p.sku}</div>
+                      <div className='mt-0.5 text-sm text-muted-foreground'>
+                        {shortWarehouse(whName(p.warehouse))} · Partida {p.id}
                       </div>
-                    </td>
-                    <td className='px-3.5 py-2.5'>
-                      <span className='font-mono font-bold text-primary'>
-                        {p.id}
-                      </span>
-                      <div className='text-[11px] text-muted-foreground'>
-                        {p.warehouse}
-                      </div>
-                    </td>
-                    <td className='px-3.5 py-2.5'>
-                      <StockCompositionBar
-                        qty={p.qty}
-                        totalPhysical={phys}
-                        height='sm'
-                      />
-                    </td>
-                    <td className='px-3.5 py-2.5 font-bold tabular-nums text-emerald-600 dark:text-emerald-400'>
-                      {formatQtyWithEquivalent(p.qty.disponible, s)}
-                    </td>
-                    <td className='px-3.5 py-2.5 tabular-nums text-blue-600 dark:text-blue-400 font-medium'>
-                      {nf(p.qty.reservado)}
-                    </td>
-                    <td className='px-3.5 py-2.5'>
-                      {p.expiry ? (
-                        <div className='flex items-center gap-1.5'>
-                          <span>{p.expiry}</span>
-                          {expSoon && (
-                            <Badge variant='destructive' className='text-[10px] py-0'>
-                              {daysToExp}d
-                            </Badge>
+                      <div className='mt-2 flex flex-wrap items-baseline gap-x-4 gap-y-0.5 text-sm tabular-nums'>
+                        <span>
+                          <span className='text-muted-foreground'>
+                            Disponible{' '}
+                          </span>
+                          <span className='font-medium'>
+                            {p.qty.disponible > 0 ? disp.main : '—'}
+                          </span>
+                          {p.qty.disponible > 0 && disp.equiv && (
+                            <span className='text-muted-foreground'>
+                              {' '}
+                              {disp.equiv}
+                            </span>
                           )}
+                        </span>
+                        {p.qty.reservado > 0 && (
+                          <span>
+                            <span className='text-muted-foreground'>
+                              Reservado{' '}
+                            </span>
+                            <span className='font-medium'>
+                              {qtyWithUnit(p.qty.reservado, skuUnit(sku))}
+                            </span>
+                          </span>
+                        )}
+                      </div>
+                      {alerts.length > 0 && (
+                        <div className='mt-2 flex flex-wrap gap-1.5'>
+                          {alerts.map((a) => (
+                            <StatusPill key={a.key} tone={a.tone}>
+                              {a.label}
+                            </StatusPill>
+                          ))}
                         </div>
-                      ) : (
-                        <span className='text-muted-foreground'>No vence</span>
                       )}
-                    </td>
-                    <td className='px-3.5 py-2.5 text-right font-bold tabular-nums text-foreground'>
-                      {cop(valCOP)}
-                    </td>
-                  </tr>
+                    </ListRow>
+                  </li>
                 )
               })}
-            </tbody>
-          </table>
-        </div>
-      )}
+            </ul>
 
-      {list.length === 0 && (
-        <EmptyState text='No hay partidas que coincidan con los filtros seleccionados.' />
-      )}
+            {list.length > visible.length && (
+              <button
+                type='button'
+                onClick={() => setLimit((l) => l + PAGE_SIZE)}
+                className='flex h-12 w-full items-center justify-center border-t text-sm font-medium text-primary transition-colors hover:bg-accent/60'
+              >
+                Cargar más ({list.length - visible.length} restantes)
+              </button>
+            )}
+          </>
+        )}
+      </Section>
 
-      {/* Partida 360° Detail Drawer */}
       <PartidaDetailDrawer
-        partida={selectedPartida}
-        open={drawerOpen}
-        onOpenChange={setDrawerOpen}
-        onNavigateToOrder={onNavigateToOrder}
+        partidaId={selectedId}
+        open={selectedId !== null}
+        onOpenChange={(o) => !o && setSelectedId(null)}
+        onNavigateToOrder={() => onNavigateToOrder()}
+        onNavigate={goToSlug}
       />
 
-      {/* Modal Agregar Stock a Bodega */}
-      <Dialog
-        open={addStockModalOpen}
-        onOpenChange={(open) => !open && setAddStockModalOpen(false)}
-      >
-        <DialogContent className='max-w-md'>
-          <DialogHeader>
-            <DialogTitle className='flex items-center gap-2'>
-              <PackagePlus className='size-5 text-primary' />
-              Ingresar Stock Físico a Bodega
-            </DialogTitle>
-          </DialogHeader>
-
-          <form onSubmit={handleAddStockSubmit} className='space-y-4 pt-1 text-xs'>
-            <div className='space-y-1.5'>
-              <label className='font-semibold text-foreground'>Bodega de Destino *</label>
-              <select
-                value={stockWh}
-                onChange={(e) => setStockWh(e.target.value)}
-                className='w-full h-9 rounded-md border bg-background px-3 py-1.5 text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-primary'
-              >
-                {warehouses.map((w) => (
-                  <option key={w.id} value={w.id}>
-                    {w.id} · {w.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className='space-y-1.5'>
-              <label className='font-semibold text-foreground'>Producto (SKU) *</label>
-              <select
-                value={stockSku}
-                onChange={(e) => setStockSku(e.target.value)}
-                className='w-full h-9 rounded-md border bg-background px-3 py-1.5 text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-primary'
-              >
-                {skus.map((s) => (
-                  <option key={s.sku} value={s.sku}>
-                    {s.sku} · {s.name} ({s.unitMeasure})
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {/* Cantidad y Preview de Conversión en tiempo real */}
-            {(() => {
-              const currentSku = skuMap.get(stockSku)
-              const conv = currentSku?.conversions?.[0]
-              const baseU = currentSku?.unitMeasure ?? 'Caja'
-              const q = Number(stockQty) || 0
-              const equiv = conv ? (q * conv.factor).toFixed(2) : null
-              const totalVal = q * (currentSku?.unitCost ?? 0)
-
-              return (
-                <div className='space-y-2'>
-                  <div className='grid grid-cols-2 gap-3'>
-                    <div className='space-y-1.5'>
-                      <label className='font-semibold text-foreground'>
-                        Cantidad a Ingresar ({baseU}s) *
-                      </label>
-                      <Input
-                        type='number'
-                        min={1}
-                        required
-                        value={stockQty}
-                        onChange={(e) => setStockQty(e.target.value)}
-                        className='font-bold tabular-nums'
-                      />
-                    </div>
-
-                    <div className='space-y-1.5'>
-                      <label className='font-semibold text-foreground'>
-                        Doc. Soporte / Referencia
-                      </label>
-                      <Input
-                        placeholder='ej. INV-INICIAL-2026'
-                        value={stockDocRef}
-                        onChange={(e) => setStockDocRef(e.target.value)}
-                      />
-                    </div>
-                  </div>
-
-                  {/* Banner de equivalencia y valorización */}
-                  <div className='rounded-lg border bg-muted/40 p-2.5 space-y-1'>
-                    <div className='flex items-center justify-between text-[11px]'>
-                      <span className='text-muted-foreground'>Equivalencia física:</span>
-                      <span className='font-bold text-foreground'>
-                        {q} {baseU}{q !== 1 ? 's' : ''}
-                        {equiv && conv ? ` (~${equiv} ${conv.targetUnit})` : ''}
-                      </span>
-                    </div>
-                    <div className='flex items-center justify-between text-[11px]'>
-                      <span className='text-muted-foreground'>Valorización en COP:</span>
-                      <span className='font-bold text-primary tabular-nums'>
-                        {cop(totalVal)}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              )
-            })()}
-
-            <div className='grid grid-cols-2 gap-3'>
-              <div className='space-y-1.5'>
-                <label className='font-semibold text-foreground'>Proveedor de Origen</label>
-                <Input
-                  placeholder='ej. Ceramix Nacional SAS'
-                  value={stockSupplier}
-                  onChange={(e) => setStockSupplier(e.target.value)}
-                />
-              </div>
-
-              {skuMap.get(stockSku)?.requiresExpiry ? (
-                <div className='space-y-1.5'>
-                  <label className='font-semibold text-rose-600 dark:text-rose-400'>
-                    Fecha Vencimiento (FEFO) *
-                  </label>
-                  <Input
-                    type='date'
-                    required
-                    value={stockExpiry}
-                    onChange={(e) => setStockExpiry(e.target.value)}
-                    className='border-rose-300 dark:border-rose-800'
-                  />
-                </div>
-              ) : (
-                <div className='space-y-1.5'>
-                  <label className='font-medium text-muted-foreground'>Fecha Vencimiento</label>
-                  <Input
-                    disabled
-                    value='No aplica (No perecedero)'
-                    className='bg-muted/30 text-muted-foreground'
-                  />
-                </div>
-              )}
-            </div>
-
-            <div className='flex justify-end gap-2 pt-2 border-t'>
-              <Button
-                type='button'
-                variant='outline'
-                onClick={() => setAddStockModalOpen(false)}
-              >
-                Cancelar
-              </Button>
-              <Button type='submit'>
-                Confirmar Ingreso a Bodega
-              </Button>
-            </div>
-          </form>
-        </DialogContent>
-      </Dialog>
-
-      {/* Modal Crear Nuevo Producto */}
-      <Dialog
-        open={skuModalOpen}
-        onOpenChange={(open) => !open && setSkuModalOpen(false)}
-      >
-        <DialogContent className='max-w-lg'>
-          <DialogHeader>
-            <DialogTitle className='flex items-center gap-2'>
-              <Boxes className='size-5 text-primary' />
-              Crear Nuevo Producto en Catálogo
-            </DialogTitle>
-          </DialogHeader>
-
-          <form onSubmit={handleCreateSkuSubmit} className='space-y-4 pt-1 text-xs'>
-            <div className='grid grid-cols-2 gap-3'>
-              <div className='space-y-1.5'>
-                <label className='font-semibold text-foreground'>Código SKU *</label>
-                <Input
-                  required
-                  placeholder='ej. POR-6060-BLA'
-                  value={skuFormCode}
-                  onChange={(e) => setSkuFormCode(e.target.value.toUpperCase())}
-                  className='font-mono font-bold'
-                />
-              </div>
-
-              <div className='space-y-1.5'>
-                <label className='font-semibold text-foreground'>Categoría *</label>
-                <select
-                  value={skuFormCategory}
-                  onChange={(e) => setSkuFormCategory(e.target.value)}
-                  className='w-full h-9 rounded-md border bg-background px-3 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-primary'
-                >
-                  <option value='Porcelanatos'>Porcelanatos</option>
-                  <option value='Cerámicas'>Cerámicas</option>
-                  <option value='Revestimientos'>Revestimientos</option>
-                  <option value='Adhesivos y Morteros'>Adhesivos y Morteros</option>
-                  <option value='Químicos y Selladores'>Químicos y Selladores</option>
-                  <option value='Perfiles y Accesorios'>Perfiles y Accesorios</option>
-                  <option value='Grifería'>Grifería</option>
-                  <option value='Otros'>Otros</option>
-                </select>
-              </div>
-            </div>
-
-            <div className='space-y-1.5'>
-              <label className='font-semibold text-foreground'>
-                Nombre descriptivo del producto *
-              </label>
-              <Input
-                required
-                placeholder='ej. Porcelanato Blanco Satinado 60x60 cm'
-                value={skuFormName}
-                onChange={(e) => setSkuFormName(e.target.value)}
-              />
-            </div>
-
-            <div className='grid grid-cols-2 gap-3'>
-              <div className='space-y-1.5'>
-                <label className='font-semibold text-foreground'>
-                  Unidad Base (Física en Bodega) *
-                </label>
-                <select
-                  value={skuFormBaseUnit}
-                  onChange={(e) =>
-                    setSkuFormBaseUnit(e.target.value as StandardUnit)
-                  }
-                  className='w-full h-9 rounded-md border bg-background px-3 py-1.5 text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-primary'
-                >
-                  <option value='Caja'>Caja (Empaque cerámico/piezas)</option>
-                  <option value='Saco'>Saco (Morteros/polvos)</option>
-                  <option value='Balde'>Balde (Líquidos/pastas)</option>
-                  <option value='Tira'>Tira (Perfiles/molduras)</option>
-                  <option value='Rollo'>Rollo (Membranas/mallas)</option>
-                  <option value='Unidad'>Unidad (Pieza individual)</option>
-                  <option value='kg'>Kilogramo (kg)</option>
-                  <option value='m'>Metro lineal (m)</option>
-                  <option value='Litro'>Litro (L)</option>
-                </select>
-              </div>
-
-              <div className='space-y-1.5'>
-                <label className='font-semibold text-foreground'>
-                  Costo Unitario COP ($) *
-                </label>
-                <Input
-                  type='number'
-                  min={1}
-                  required
-                  placeholder='ej. 85000'
-                  value={skuFormCost}
-                  onChange={(e) => setSkuFormCost(e.target.value)}
-                  className='font-bold tabular-nums'
-                />
-              </div>
-            </div>
-
-            {/* Control FEFO */}
-            <div className='flex items-center justify-between rounded-lg border bg-muted/20 p-3'>
-              <div className='space-y-0.5'>
-                <span className='font-semibold text-foreground'>
-                  Control de Vencimiento Estricto (FEFO)
-                </span>
-                <p className='text-[11px] text-muted-foreground'>
-                  Activar para productos perecederos (adhesivos, químicos).
-                </p>
-              </div>
-              <Switch
-                checked={skuFormExpiry}
-                onCheckedChange={setSkuFormExpiry}
-              />
-            </div>
-
-            {/* Parametrización de Conversión de Medidas */}
-            <div className='rounded-xl border border-indigo-200 dark:border-indigo-900 bg-indigo-50/40 dark:bg-indigo-950/20 p-4 space-y-3'>
-              <div className='flex items-center justify-between'>
-                <div className='flex items-center gap-2'>
-                  <Ruler className='size-4 text-indigo-600 dark:text-indigo-400' />
-                  <span className='font-bold text-foreground text-xs'>
-                    Factor de Conversión de Unidades
-                  </span>
-                </div>
-                <label className='inline-flex items-center gap-1.5 cursor-pointer text-xs font-medium'>
-                  <input
-                    type='checkbox'
-                    checked={skuHasConversion}
-                    onChange={(e) => setSkuHasConversion(e.target.checked)}
-                    className='rounded border-gray-300'
-                  />
-                  <span>Habilitar conversión</span>
-                </label>
-              </div>
-
-              {skuHasConversion ? (
-                <div className='space-y-3 pt-1'>
-                  <div className='grid grid-cols-2 gap-3'>
-                    <div className='space-y-1'>
-                      <label className='text-[11px] font-medium text-foreground'>
-                        Unidad Equivalente (Venta/Obra)
-                      </label>
-                      <select
-                        value={skuConvTargetUnit}
-                        onChange={(e) =>
-                          setSkuConvTargetUnit(e.target.value as StandardUnit)
-                        }
-                        className='w-full h-8 rounded-md border bg-background px-2.5 py-1 text-xs font-semibold'
-                      >
-                        <option value='m²'>m² (Metros Cuadrados)</option>
-                        <option value='kg'>kg (Kilogramos)</option>
-                        <option value='m'>m (Metros Lineales)</option>
-                        <option value='Litro'>Litro (L)</option>
-                        <option value='Unidad'>Unidad</option>
-                      </select>
-                    </div>
-
-                    <div className='space-y-1'>
-                      <label className='text-[11px] font-medium text-foreground'>
-                        Cantidad por 1 {skuFormBaseUnit}
-                      </label>
-                      <Input
-                        type='number'
-                        step='0.01'
-                        min='0.001'
-                        required
-                        value={skuConvFactor}
-                        onChange={(e) => setSkuConvFactor(e.target.value)}
-                        className='h-8 text-xs font-bold tabular-nums'
-                      />
-                    </div>
-                  </div>
-
-                  <div className='rounded-md bg-background/80 border p-2.5 text-[11px] space-y-1'>
-                    <div className='flex items-center gap-1.5 font-bold text-indigo-700 dark:text-indigo-300'>
-                      <Check className='size-3.5' />
-                      Regla: 1 {skuFormBaseUnit} = {skuConvFactor || 0}{' '}
-                      {skuConvTargetUnit}
-                    </div>
-                    <div className='text-muted-foreground'>
-                      Ejemplo: Si despachas <strong>10 {skuFormBaseUnit}s</strong>, entregas{' '}
-                      <strong>
-                        {(10 * (Number(skuConvFactor) || 0)).toFixed(2)}{' '}
-                        {skuConvTargetUnit}
-                      </strong>
-                      .
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                <p className='text-[11px] text-muted-foreground'>
-                  Control directo 1:1 sin conversión secundaria.
-                </p>
-              )}
-            </div>
-
-            <div className='flex justify-end gap-2 pt-2 border-t'>
-              <Button
-                type='button'
-                variant='outline'
-                onClick={() => setSkuModalOpen(false)}
-              >
-                Cancelar
-              </Button>
-              <Button type='submit'>
-                Crear y Seleccionar Producto
-              </Button>
-            </div>
-          </form>
-        </DialogContent>
-      </Dialog>
+      {canAddStock && (
+        <Dialog open={stockOpen} onOpenChange={setStockOpen}>
+          <DialogContent className='max-h-[92vh] overflow-y-auto sm:max-w-lg'>
+            <DirectStockForm
+              defaultWarehouse={
+                scopeWarehouses.some((w) => w.id === warehouse)
+                  ? warehouse
+                  : (scopeWarehouses[0]?.id ?? warehouses[0]?.id ?? '')
+              }
+              onDone={() => setStockOpen(false)}
+              onGoCatalog={
+                hasAccess(findScreenBySlug('2-4').scr)
+                  ? () => {
+                      setStockOpen(false)
+                      goToSlug('2-4')
+                    }
+                  : undefined
+              }
+            />
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   )
 }
 
-// 2.2 Movimientos (Kárdex)
-export function MovementsScreen() {
-  const { movements, matchesScope } = useWms()
-  const [query, setQuery] = useState('')
-  const [typeFilter, setTypeFilter] = useState<'ALL' | MovementType>('ALL')
+/** Formulario de ingreso directo. Vive dentro del Dialog para reiniciarse al abrir. */
+function DirectStockForm({
+  defaultWarehouse,
+  onDone,
+  onGoCatalog,
+}: {
+  defaultWarehouse: string
+  onDone: () => void
+  onGoCatalog?: () => void
+}) {
+  const { skus, warehouses, addStockPartida } = useWms()
+  const sortedSkus = useMemo(
+    () => [...skus].sort((a, b) => a.name.localeCompare(b.name, 'es')),
+    [skus]
+  )
 
-  const list = movements
-    .filter((m) => matchesScope(m.warehouse))
-    .filter((m) => typeFilter === 'ALL' || m.type === typeFilter)
-    .filter((m) =>
-      `${m.sku} ${m.partidaId} ${m.ref} ${m.user} ${m.type}`
-        .toLowerCase()
-        .includes(query.toLowerCase())
-    )
+  const [wh, setWh] = useState(defaultWarehouse)
+  const [skuCode, setSkuCode] = useState(sortedSkus[0]?.sku ?? '')
+  const [qty, setQty] = useState('')
+  const [supplier, setSupplier] = useState('')
+  const [docRef, setDocRef] = useState('')
+  const [expiry, setExpiry] = useState('')
+  const [errors, setErrors] = useState<Record<string, string>>({})
 
-  const getMovementVisual = (type: MovementType) => {
-    switch (type) {
-      case 'Ingreso':
-      case 'Reintegro':
-      case 'Devolución cliente':
-      case 'Traspaso entrada':
-        return {
-          icon: ArrowDownLeft,
-          color: 'text-emerald-600 dark:text-emerald-400',
-          bg: 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800',
-          badgeVariant: 'outline' as const,
-        }
-      case 'Entrega':
-      case 'Reserva':
-      case 'Traspaso salida':
-      case 'Devolución proveedor':
-        return {
-          icon: ArrowUpRight,
-          color: 'text-blue-600 dark:text-blue-400',
-          bg: 'bg-blue-50 dark:bg-blue-950/40 border-blue-200 dark:border-blue-800',
-          badgeVariant: 'secondary' as const,
-        }
-      case 'Daño':
-      case 'Baja':
-        return {
-          icon: ShieldAlert,
-          color: 'text-rose-600 dark:text-rose-400',
-          bg: 'bg-rose-50 dark:bg-rose-950/40 border-rose-200 dark:border-rose-800',
-          badgeVariant: 'destructive' as const,
-        }
-      case 'Ajuste conteo':
-        return {
-          icon: Scale,
-          color: 'text-purple-600 dark:text-purple-400',
-          bg: 'bg-purple-50 dark:bg-purple-950/40 border-purple-200 dark:border-purple-800',
-          badgeVariant: 'outline' as const,
-        }
-      default:
-        return {
-          icon: History,
-          color: 'text-muted-foreground',
-          bg: 'bg-muted border-border',
-          badgeVariant: 'outline' as const,
-        }
+  const clearError = (key: string) =>
+    setErrors((prev) => {
+      if (!(key in prev)) return prev
+      const { [key]: _removed, ...rest } = prev
+      return rest
+    })
+
+  const sku = sortedSkus.find((s) => s.sku === skuCode)
+  const n = Number(qty)
+  const validQty = Number.isInteger(n) && n > 0
+  const equivalent =
+    validQty && sku?.conversions?.[0] ? qtyParts(n, sku).equiv : null
+
+  const submit = (e: React.FormEvent) => {
+    e.preventDefault()
+    const next: Record<string, string> = {}
+    if (!validQty) next.qty = 'Escribe una cantidad entera mayor que cero.'
+    if (sku?.requiresExpiry) {
+      if (!expiry)
+        next.expiry = 'Este producto vence: indica la fecha de vencimiento.'
+      else if (expiry < TODAY_STR)
+        next.expiry = 'Esa fecha ya pasó. Revisa el vencimiento del empaque.'
     }
+    if (!wh) next.wh = 'Elige la bodega donde queda la mercancía.'
+    setErrors(next)
+    if (Object.keys(next).length > 0) return
+    addStockPartida({
+      sku: skuCode,
+      warehouse: wh,
+      qty: n,
+      supplier: supplier.trim(),
+      expiry: sku?.requiresExpiry ? expiry : null,
+      docRef: docRef.trim() || undefined,
+    })
+    onDone()
   }
 
   return (
-    <div className='space-y-6'>
-      <PageHeader
-        title='Movimientos (Kárdex)'
-        subtitle='Bitácora cronológica inmutable con trazabilidad visual de origen a destino.'
-      />
+    <form onSubmit={submit} className='space-y-4' noValidate>
+      <DialogHeader>
+        <DialogTitle>Ingresar stock directo</DialogTitle>
+        <DialogDescription>
+          Para mercancía que ya está en la bodega y no pasó por una recepción.
+          Queda registrada a tu nombre.
+        </DialogDescription>
+      </DialogHeader>
 
-      <div className='flex flex-wrap items-center gap-2.5'>
-        <Input
-          className='h-8 w-72 text-xs'
-          placeholder='Buscar SKU, partida, referencia o usuario…'
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-        />
+      <Field label='Bodega' error={errors.wh} required>
         <select
-          aria-label='Filtrar por tipo de movimiento'
-          className='h-8 rounded-md border bg-background px-2.5 text-xs'
-          value={typeFilter}
-          onChange={(e) => setTypeFilter(e.target.value as 'ALL' | MovementType)}
+          value={wh}
+          onChange={(e) => {
+            setWh(e.target.value)
+            clearError('wh')
+          }}
+          className={cn(SELECT_CLASS, 'h-11 sm:h-10')}
         >
-          <option value='ALL'>Todos los tipos de movimiento</option>
-          {[
-            'Ingreso',
-            'Reserva',
-            'Liberación',
-            'Entrega',
-            'Daño',
-            'Baja',
-            'Traspaso salida',
-            'Traspaso entrada',
-            'Reclamo',
-            'Reintegro',
-            'Devolución cliente',
-            'Devolución proveedor',
-            'Ajuste conteo',
-          ].map((t) => (
-            <option key={t} value={t}>
-              {t}
+          {warehouses.map((w) => (
+            <option key={w.id} value={w.id}>
+              {w.name}
             </option>
           ))}
         </select>
-        <span className='ms-auto text-xs text-muted-foreground'>
-          {list.length} movimientos registrados
-        </span>
-      </div>
+      </Field>
 
-      {/* Visual Activity Timeline list */}
-      <div className='space-y-2.5'>
-        {list.map((m) => {
-          const visual = getMovementVisual(m.type)
-          const Icon = visual.icon
+      <Field label='Producto' required>
+        <select
+          value={skuCode}
+          onChange={(e) => {
+            setSkuCode(e.target.value)
+            clearError('expiry')
+          }}
+          className={cn(SELECT_CLASS, 'h-11 sm:h-10')}
+        >
+          {sortedSkus.map((s) => (
+            <option key={s.sku} value={s.sku}>
+              {s.name}
+            </option>
+          ))}
+        </select>
+      </Field>
 
-          return (
-            <div
-              key={m.id}
-              className='flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-xl border bg-card p-3.5 shadow-xs transition-all hover:border-primary/40'
-            >
-              {/* Left: Icon + Type + Product info */}
-              <div className='flex items-start gap-3 min-w-0'>
-                <div
-                  className={`flex size-9 shrink-0 items-center justify-center rounded-lg border ${visual.bg}`}
-                >
-                  <Icon className={`size-4.5 ${visual.color}`} />
-                </div>
-                <div className='min-w-0'>
-                  <div className='flex items-center gap-2'>
-                    <Badge variant={visual.badgeVariant} className='text-[10px] py-0'>
-                      {m.type}
-                    </Badge>
-                    <span className='font-mono text-xs font-bold text-foreground'>
-                      {m.sku}
-                    </span>
-                    <span className='text-[11px] text-muted-foreground'>
-                      Partida: {m.partidaId}
-                    </span>
-                  </div>
-                  <div className='mt-1 flex items-center gap-2 text-xs text-muted-foreground'>
-                    <span className='font-medium text-foreground'>{m.warehouse}</span>
-                    <span>· Ref: {m.ref}</span>
-                    <span>· Por: {m.user}</span>
-                  </div>
-                </div>
-              </div>
+      <div className='grid gap-4 sm:grid-cols-2'>
+        <Field
+          label={`Cantidad${sku ? ` (${sku.unitMeasure.toLowerCase()}s)` : ''}`}
+          error={errors.qty}
+          hint={
+            equivalent
+              ? `Equivale a ${equivalent.replace('≈ ', '')}`
+              : undefined
+          }
+          required
+        >
+          <Input
+            inputMode='numeric'
+            autoComplete='off'
+            placeholder='Ej. 50'
+            value={qty}
+            onChange={(e) => {
+              setQty(e.target.value.replace(/\D/g, ''))
+              clearError('qty')
+            }}
+            aria-invalid={Boolean(errors.qty)}
+            className='h-11 text-base tabular-nums sm:h-10 sm:text-sm'
+          />
+        </Field>
 
-              {/* Right: State Transition Flow + Units & Date */}
-              <div className='flex items-center justify-between sm:justify-end gap-4 shrink-0 border-t sm:border-t-0 pt-2 sm:pt-0'>
-                {/* Visual Transition */}
-                <div className='flex items-center gap-1.5 rounded-lg border bg-muted/40 px-2.5 py-1 text-xs'>
-                  <span className='font-medium text-muted-foreground text-[11px]'>
-                    {m.fromState ? STATE_LABELS[m.fromState] : 'Exterior'}
-                  </span>
-                  <ArrowRight className='size-3 text-muted-foreground' />
-                  <span className='font-semibold text-foreground text-[11px]'>
-                    {m.toState ? STATE_LABELS[m.toState] : 'Salida'}
-                  </span>
-                </div>
-
-                {/* Units badge */}
-                <div className='text-end'>
-                  <div className='text-sm font-bold tabular-nums text-foreground'>
-                    {m.qty > 0 ? `+${nf(m.qty)}` : nf(m.qty)} uds
-                  </div>
-                  <div className='text-[10px] text-muted-foreground tabular-nums'>
-                    {m.ts}
-                  </div>
-                </div>
-              </div>
-            </div>
-          )
-        })}
-
-        {list.length === 0 && (
-          <EmptyState text='No hay movimientos para los filtros seleccionados.' />
+        {sku?.requiresExpiry && (
+          <Field label='Vencimiento' error={errors.expiry} required>
+            <Input
+              type='date'
+              min={TODAY_STR}
+              value={expiry}
+              onChange={(e) => {
+                setExpiry(e.target.value)
+                clearError('expiry')
+              }}
+              aria-invalid={Boolean(errors.expiry)}
+              className='h-11 sm:h-10'
+            />
+          </Field>
         )}
       </div>
+
+      <div className='grid gap-4 sm:grid-cols-2'>
+        <Field label='Proveedor' hint='Si no lo sabes, déjalo vacío.'>
+          <Input
+            value={supplier}
+            onChange={(e) => setSupplier(e.target.value)}
+            className='h-11 sm:h-10'
+          />
+        </Field>
+        <Field label='Documento de soporte' hint='Factura, acta o remisión.'>
+          <Input
+            value={docRef}
+            onChange={(e) => setDocRef(e.target.value)}
+            className='h-11 sm:h-10'
+          />
+        </Field>
+      </div>
+
+      {onGoCatalog && (
+        <p className='text-sm text-muted-foreground'>
+          ¿No encuentras el producto?{' '}
+          <button
+            type='button'
+            onClick={onGoCatalog}
+            className='font-medium text-primary hover:underline'
+          >
+            Créalo en el catálogo
+          </button>
+          .
+        </p>
+      )}
+
+      <DialogFooter className='gap-2 sm:gap-2'>
+        <Button
+          type='button'
+          variant='outline'
+          className='h-11 sm:h-9'
+          onClick={onDone}
+        >
+          Cancelar
+        </Button>
+        <Button type='submit' className='h-11 sm:h-9'>
+          Ingresar al inventario
+        </Button>
+      </DialogFooter>
+    </form>
+  )
+}
+
+/* -------------------------------------------------------------------------- */
+/*  2.2 Movimientos (kárdex)                                                   */
+/* -------------------------------------------------------------------------- */
+
+type MovementGroup =
+  | 'all'
+  | 'ingresos'
+  | 'entregas'
+  | 'reservas'
+  | 'perdidas'
+  | 'traspasos'
+  | 'reclamos'
+
+const MOVEMENT_GROUPS: Record<
+  Exclude<MovementGroup, 'all'>,
+  { label: string; types: MovementType[] }
+> = {
+  ingresos: { label: 'Ingresos', types: ['Ingreso'] },
+  entregas: { label: 'Entregas', types: ['Entrega'] },
+  reservas: { label: 'Reservas', types: ['Reserva', 'Liberación'] },
+  perdidas: {
+    label: 'Daños y pérdidas',
+    types: ['Daño', 'Baja', 'Ajuste conteo'],
+  },
+  traspasos: {
+    label: 'Traspasos',
+    types: ['Traspaso salida', 'Traspaso entrada'],
+  },
+  reclamos: {
+    label: 'Reclamos',
+    types: [
+      'Reclamo',
+      'Reintegro',
+      'Devolución cliente',
+      'Devolución proveedor',
+    ],
+  },
+}
+
+function stateFlow(m: Movement): string {
+  const from = m.fromState ? STOCK_STATE_META[m.fromState].label : null
+  const to = m.toState ? STOCK_STATE_META[m.toState].label : null
+  if (from && to) return `${from} → ${to}`
+  if (to) return `Entra · ${to}`
+  if (from) return `Sale · ${from}`
+  return ''
+}
+
+export function MovementsScreen() {
+  const { movements, skus, warehouses, matchesScope } = useWms()
+  const [query, setQuery] = useState('')
+  const [group, setGroup] = useState<MovementGroup>('all')
+  const [whFilter, setWhFilter] = useState('ALL')
+  const [limit, setLimit] = useState(PAGE_SIZE)
+
+  const skuMap = useMemo(() => new Map(skus.map((s) => [s.sku, s])), [skus])
+  const whName = (id: string) => warehouses.find((w) => w.id === id)?.name ?? id
+  const scopeWarehouses = warehouses.filter((w) => matchesScope(w.id))
+
+  const inScope = useMemo(
+    () =>
+      movements
+        .filter((m) => matchesScope(m.warehouse))
+        .sort((a, b) => b.ts.localeCompare(a.ts) || b.id.localeCompare(a.id)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [movements, warehouses, matchesScope]
+  )
+
+  const q = query.trim().toLowerCase()
+  const base = inScope
+    .filter((m) => whFilter === 'ALL' || m.warehouse === whFilter)
+    .filter((m) => {
+      if (!q) return true
+      const s = skuMap.get(m.sku)
+      return `${m.type} ${m.sku} ${s?.name ?? ''} ${m.partidaId} ${m.ref} ${m.user}`
+        .toLowerCase()
+        .includes(q)
+    })
+  const countOf = (g: Exclude<MovementGroup, 'all'>) =>
+    base.filter((m) => MOVEMENT_GROUPS[g].types.includes(m.type)).length
+  const list =
+    group === 'all'
+      ? base
+      : base.filter((m) => MOVEMENT_GROUPS[group].types.includes(m.type))
+  const visible = list.slice(0, limit)
+
+  const exportCsv = () =>
+    downloadCsv(`movimientos-${TODAY_STR}.csv`, [
+      [
+        'Fecha y hora',
+        'Tipo',
+        'SKU',
+        'Producto',
+        'Partida',
+        'Bodega',
+        'De',
+        'A',
+        'Cantidad',
+        'Referencia',
+        'Persona',
+      ],
+      ...list.map((m) => [
+        m.ts,
+        m.type,
+        m.sku,
+        skuMap.get(m.sku)?.name ?? m.sku,
+        m.partidaId,
+        whName(m.warehouse),
+        m.fromState ? STOCK_STATE_META[m.fromState].label : '',
+        m.toState ? STOCK_STATE_META[m.toState].label : '',
+        m.qty,
+        m.ref,
+        m.user,
+      ]),
+    ])
+
+  return (
+    <div className='space-y-5 sm:space-y-6'>
+      <PageHeader
+        title='Movimientos'
+        actions={
+          <Button
+            type='button'
+            variant='outline'
+            className='h-10 gap-2 shadow-none'
+            onClick={exportCsv}
+          >
+            <Download className='size-4' />
+            Descargar CSV
+          </Button>
+        }
+      />
+
+      <div className='space-y-3'>
+        <div
+          className={cn(
+            'grid gap-2',
+            scopeWarehouses.length > 1
+              ? 'sm:grid-cols-[minmax(0,1fr)_16rem]'
+              : 'grid-cols-1'
+          )}
+        >
+          <div className='relative'>
+            <Search
+              className='pointer-events-none absolute start-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground'
+              aria-hidden
+            />
+            <Input
+              type='search'
+              aria-label='Buscar por producto, referencia o persona'
+              placeholder='Buscar producto, referencia o persona'
+              value={query}
+              onChange={(e) => {
+                setQuery(e.target.value)
+                setLimit(PAGE_SIZE)
+              }}
+              className='h-11 ps-9 text-base sm:h-10 sm:text-sm'
+            />
+          </div>
+          {scopeWarehouses.length > 1 && (
+            <select
+              aria-label='Filtrar por bodega'
+              value={whFilter}
+              onChange={(e) => setWhFilter(e.target.value)}
+              className={cn(SELECT_CLASS, 'h-11 sm:h-10')}
+            >
+              <option value='ALL'>Todas las bodegas</option>
+              {scopeWarehouses.map((w) => (
+                <option key={w.id} value={w.id}>
+                  {shortWarehouse(w.name)}
+                </option>
+              ))}
+            </select>
+          )}
+        </div>
+
+        <FilterTabs<MovementGroup>
+          value={group}
+          onChange={(v) => {
+            setGroup(v)
+            setLimit(PAGE_SIZE)
+          }}
+          options={[
+            { id: 'all', label: 'Todos', count: base.length },
+            ...(
+              Object.keys(MOVEMENT_GROUPS) as Exclude<MovementGroup, 'all'>[]
+            ).map((g) => ({
+              id: g,
+              label: MOVEMENT_GROUPS[g].label,
+              count: countOf(g),
+            })),
+          ]}
+        />
+      </div>
+
+      <Section flush>
+        {visible.length === 0 ? (
+          <EmptyState
+            title='No hay movimientos con esos filtros'
+            text='Prueba con otro tipo, otra bodega o una búsqueda más corta.'
+          />
+        ) : (
+          <>
+            <div
+              className='hidden border-b px-5 py-3 text-sm text-muted-foreground xl:grid xl:grid-cols-[minmax(0,2.2fr)_minmax(0,1.4fr)_minmax(0,1.6fr)_minmax(0,1.2fr)_7rem] xl:gap-4'
+              aria-hidden
+            >
+              <span>Movimiento</span>
+              <span>Cantidad</span>
+              <span>Referencia</span>
+              <span>Persona</span>
+              <span className='text-end'>Fecha</span>
+            </div>
+            <ul className='divide-y'>
+              {visible.map((m) => (
+                <MovementRow
+                  key={m.id}
+                  m={m}
+                  sku={skuMap.get(m.sku)}
+                  warehouseName={shortWarehouse(whName(m.warehouse))}
+                />
+              ))}
+            </ul>
+            {list.length > visible.length && (
+              <button
+                type='button'
+                onClick={() => setLimit((l) => l + PAGE_SIZE)}
+                className='flex h-12 w-full items-center justify-center border-t text-sm font-medium text-primary transition-colors hover:bg-accent/60'
+              >
+                Cargar más ({list.length - visible.length} restantes)
+              </button>
+            )}
+          </>
+        )}
+      </Section>
     </div>
+  )
+}
+
+function MovementRow({
+  m,
+  sku,
+  warehouseName,
+}: {
+  m: Movement
+  sku?: SkuItem
+  warehouseName: string
+}) {
+  const Icon = MOVEMENT_ICON[m.type]
+  const tone = movementTone(m)
+  const qtyText = `${movementSigned(m)} ${unitWord(m.qty, skuUnit(sku))}`
+  const when = `${shortDate(m.ts)}, ${m.ts.slice(11)}`
+  const qtyClass = cn(
+    'font-semibold tabular-nums',
+    tone === 'neutral' ? 'text-foreground' : TONE[tone].text
+  )
+
+  return (
+    <li className='px-4 py-3.5 sm:px-5 xl:grid xl:grid-cols-[minmax(0,2.2fr)_minmax(0,1.4fr)_minmax(0,1.6fr)_minmax(0,1.2fr)_7rem] xl:items-center xl:gap-4'>
+      <div className='flex min-w-0 items-start gap-3'>
+        <span
+          className={cn(
+            'flex size-9 shrink-0 items-center justify-center rounded-lg',
+            TONE[tone].soft
+          )}
+        >
+          <Icon className='size-[18px]' aria-hidden />
+        </span>
+        <div className='min-w-0 flex-1'>
+          <div className='flex items-baseline justify-between gap-3'>
+            <span className='font-medium'>{m.type}</span>
+            <span className={cn('text-sm xl:hidden', qtyClass)}>{qtyText}</span>
+          </div>
+          <div className='truncate text-sm text-muted-foreground'>
+            {sku?.name ?? m.sku}
+          </div>
+          <div className='mt-1 space-y-0.5 text-sm text-muted-foreground xl:hidden'>
+            <div>{stateFlow(m)}</div>
+            <div className='truncate'>
+              {m.ref} · {warehouseName}
+            </div>
+            <div className='truncate'>
+              {m.user} · {when}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className='hidden text-sm xl:block'>
+        <div className={qtyClass}>{qtyText}</div>
+        <div className='text-muted-foreground'>{stateFlow(m)}</div>
+      </div>
+      <div className='hidden min-w-0 text-sm xl:block'>
+        <div className='truncate'>{m.ref}</div>
+        <div className='truncate text-muted-foreground'>
+          {warehouseName} · {m.partidaId}
+        </div>
+      </div>
+      <div className='hidden truncate text-sm xl:block'>{m.user}</div>
+      <div className='hidden text-end text-sm xl:block'>
+        <div>{shortDate(m.ts)}</div>
+        <div className='text-muted-foreground'>{m.ts.slice(11)}</div>
+      </div>
+    </li>
   )
 }

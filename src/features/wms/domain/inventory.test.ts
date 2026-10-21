@@ -22,6 +22,8 @@ const sampleSkus: SkuItem[] = [
     category: 'Porcelanato',
     unitMeasure: 'Caja',
     unitCost: 25,
+    unitPrice: 35,
+    maxDiscountPct: 5,
     requiresExpiry: false,
   },
   {
@@ -30,6 +32,8 @@ const sampleSkus: SkuItem[] = [
     category: 'Adhesivos',
     unitMeasure: 'Saco',
     unitCost: 10,
+    unitPrice: 14,
+    maxDiscountPct: 5,
     requiresExpiry: true,
   },
 ]
@@ -54,7 +58,13 @@ function makePartidas(): Partida[] {
       lastOutAt: '2026-10-15',
       receivedAt: '2026-09-20',
       supplier: 'Morteros Andes',
-      qty: { disponible: 100, reservado: 0, danado: 0, reclamo: 0, transito: 0 },
+      qty: {
+        disponible: 100,
+        reservado: 0,
+        danado: 0,
+        reclamo: 0,
+        transito: 0,
+      },
     },
     {
       id: 'PAR-03',
@@ -64,7 +74,13 @@ function makePartidas(): Partida[] {
       lastOutAt: '2026-07-10',
       receivedAt: '2026-06-01',
       supplier: 'Foshan Ceramics',
-      qty: { disponible: 200, reservado: 50, danado: 4, reclamo: 6, transito: 0 },
+      qty: {
+        disponible: 200,
+        reservado: 50,
+        danado: 4,
+        reclamo: 6,
+        transito: 0,
+      },
     },
   ]
 }
@@ -80,7 +96,13 @@ describe('domain/inventory', () => {
         lastOutAt: '2026-10-01',
         receivedAt: '2026-10-01',
         supplier: 'Proveedor X',
-        qty: { disponible: 0, reservado: 0, danado: 0, reclamo: 0, transito: 0 },
+        qty: {
+          disponible: 0,
+          reservado: 0,
+          danado: 0,
+          reclamo: 0,
+          transito: 0,
+        },
       },
     ]
     const movements: Movement[] = []
@@ -204,8 +226,16 @@ describe('domain/inventory', () => {
             channel: 'Obra',
             warehouse: 'BOD-CEN-01',
             status: 'Preparado',
-            lines: [{ sku: 'POR-60120-CAL', qtyOrdered: 50, qtyPickedUp: 0, allocations: [] }],
+            lines: [
+              {
+                sku: 'POR-60120-CAL',
+                qtyOrdered: 50,
+                qtyPickedUp: 0,
+                allocations: [],
+              },
+            ],
             pickups: [],
+            invoice: null,
           },
         ],
         damages: [],
@@ -270,6 +300,8 @@ describe('domain/inventory', () => {
       category: 'Porcelanatos',
       unitMeasure: 'Caja',
       unitCost: 100000,
+      unitPrice: 140000,
+      maxDiscountPct: 5,
       requiresExpiry: false,
       conversions: [{ targetUnit: 'm²', factor: 1.44 }],
     }
@@ -286,9 +318,10 @@ describe('domain/inventory', () => {
       category: 'Otros',
       unitMeasure: 'Unidad',
       unitCost: 5000,
+      unitPrice: 7000,
+      maxDiscountPct: 5,
       requiresExpiry: false,
     }
     expect(formatQtyWithEquivalent(10, skuWithoutConv)).toBe('10 unidads')
   })
 })
-

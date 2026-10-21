@@ -1,58 +1,34 @@
-import { Link, useSearch } from '@tanstack/react-router'
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card'
-import { AuthLayout } from '../auth-layout'
-import { UserAuthForm } from './components/user-auth-form'
+import { useSearch } from '@tanstack/react-router'
+import { PackageCheck } from 'lucide-react'
+import { DemoUserList, UserAuthForm } from './components/user-auth-form'
 
 export function SignIn() {
   const { redirect } = useSearch({ from: '/(auth)/sign-in' })
 
   return (
-    <AuthLayout>
-      <Card className='max-w-sm gap-4'>
-        <CardHeader>
-          <CardTitle className='text-lg tracking-tight'>Sign in</CardTitle>
-          <CardDescription>
-            Enter your email and password below to log into{' '}
-            <br className='max-sm:hidden' /> your account. Don't have an
-            account?{' '}
-            <Link
-              to='/sign-up'
-              className='text-nowrap underline underline-offset-4 hover:text-primary'
-            >
-              Sign Up
-            </Link>
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
+    <div className='flex min-h-svh items-center justify-center bg-background px-4 py-8'>
+      <div className='w-full max-w-md space-y-6'>
+        <div className='flex flex-col items-center gap-3 text-center'>
+          <div className='flex size-12 items-center justify-center rounded-xl bg-primary text-primary-foreground'>
+            <PackageCheck className='size-6' />
+          </div>
+          <div>
+            <h1 className='text-2xl font-semibold tracking-tight'>
+              Decor Cerámicas
+            </h1>
+            <p className='text-sm text-muted-foreground'>
+              Control de bodega, entregas y facturas
+            </p>
+          </div>
+        </div>
+
+        <div className='space-y-6 rounded-xl border bg-card p-5 sm:p-6'>
           <UserAuthForm redirectTo={redirect} />
-        </CardContent>
-        <CardFooter>
-          <p className='px-8 text-center text-sm text-muted-foreground'>
-            By clicking sign in, you agree to our{' '}
-            <a
-              href='/terms'
-              className='underline underline-offset-4 hover:text-primary'
-            >
-              Terms of Service
-            </a>{' '}
-            and{' '}
-            <a
-              href='/privacy'
-              className='underline underline-offset-4 hover:text-primary'
-            >
-              Privacy Policy
-            </a>
-            .
-          </p>
-        </CardFooter>
-      </Card>
-    </AuthLayout>
+          <div className='border-t pt-5'>
+            <DemoUserList redirectTo={redirect} />
+          </div>
+        </div>
+      </div>
+    </div>
   )
 }

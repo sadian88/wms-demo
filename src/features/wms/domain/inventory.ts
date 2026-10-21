@@ -1,11 +1,7 @@
 export type StockState =
-  | 'disponible'
-  | 'reservado'
-  | 'danado'
-  | 'reclamo'
-  | 'transito'
+  'disponible' | 'reservado' | 'danado' | 'reclamo' | 'transito'
 
-export type RoleCode = 'ADM' | 'JB' | 'OPE' | 'GER'
+export type RoleCode = 'ADM' | 'JB' | 'OPE' | 'GER' | 'ASE' | 'CAJ'
 
 export const APPROVAL_THRESHOLD_COP = 1_200_000
 export const APPROVAL_THRESHOLD_USD = APPROVAL_THRESHOLD_COP
@@ -40,17 +36,38 @@ export interface SkuItem {
   name: string
   category: string
   unitMeasure: StandardUnit
+  /** Costo de adquisición por unidad base (valoriza el inventario). */
   unitCost: number
+  /** Precio de venta por unidad base antes de IVA (valoriza facturas y pedidos). */
+  unitPrice: number
+  /** Descuento máximo que un asesor puede otorgar, en %. */
+  maxDiscountPct: number
   requiresExpiry: boolean
   conversions?: UnitConversion[]
 }
 
-export function convertBaseToSecondary(baseQty: number, factor: number): number {
+/** Margen bruto en % sobre el precio de venta. */
+export function marginPct(
+  sku: Pick<SkuItem, 'unitCost' | 'unitPrice'>
+): number {
+  if (sku.unitPrice <= 0) return 0
+  return Number(
+    (((sku.unitPrice - sku.unitCost) / sku.unitPrice) * 100).toFixed(1)
+  )
+}
+
+export function convertBaseToSecondary(
+  baseQty: number,
+  factor: number
+): number {
   if (factor <= 0) return baseQty
   return Number((baseQty * factor).toFixed(2))
 }
 
-export function convertSecondaryToBase(secondaryQty: number, factor: number): number {
+export function convertSecondaryToBase(
+  secondaryQty: number,
+  factor: number
+): number {
   if (factor <= 0) return secondaryQty
   return Number((secondaryQty / factor).toFixed(2))
 }
@@ -121,15 +138,40 @@ export interface OrderLine {
   sku: string
   qtyOrdered: number
   qtyPickedUp: number
+  /** Precio de venta unitario facturado (COP). Si falta se usa el del catálogo. */
+  unitPrice?: number
   allocations: Allocation[]
 }
 
+export type PaymentMethod =
+  'Efectivo' | 'Transferencia' | 'Tarjeta' | 'Crédito' | 'Cheque' | 'Mixto'
+
+export const PAYMENT_METHODS: PaymentMethod[] = [
+  'Efectivo',
+  'Transferencia',
+  'Tarjeta',
+  'Crédito',
+  'Cheque',
+  'Mixto',
+]
+
+export type InvoiceSource = 'Siigo (CSV)' | 'Caja' | 'Móvil'
+
+/** Factura asociada a un pedido. Sin factura emitida no se puede entregar. */
+export interface InvoiceInfo {
+  /** Número completo con prefijo, ej. FV-10452. */
+  number: string
+  issuedAt: string
+  status: 'Emitida' | 'Anulada'
+  paymentMethod: PaymentMethod
+  source: InvoiceSource
+  issuedBy: string
+  voidedAt?: string
+  voidReason?: string
+}
+
 export type PickupOrderStatus =
-  | 'Reservado'
-  | 'Preparado'
-  | 'Retiro parcial'
-  | 'Entregado'
-  | 'Cancelado'
+  'Reservado' | 'Preparado' | 'Retiro parcial' | 'Entregado' | 'Cancelado'
 
 export interface PickupRecord {
   ts: string
@@ -137,6 +179,10 @@ export interface PickupRecord {
   receivedByRut: string
   docRef: string
   items: { sku: string; qty: number }[]
+  /** Persona del equipo que entregó en bodega. */
+  deliveredBy?: string
+  /** Fotos de soporte de la entrega (comprimidas, data URL). */
+  photos?: string[]
 }
 
 export interface PickupOrder {
@@ -150,6 +196,10 @@ export interface PickupOrder {
   status: PickupOrderStatus
   lines: OrderLine[]
   pickups: PickupRecord[]
+  /** Asesor comercial que originó el pedido. */
+  advisor?: string
+  /** null = pedido sin facturar: no se puede entregar. */
+  invoice: InvoiceInfo | null
 }
 
 export interface DamageReport {
@@ -163,6 +213,8 @@ export interface DamageReport {
   valueUSD: number
   reason: string
   evidence: string
+  /** Fotos de la rotura (comprimidas, data URL). */
+  photos?: string[]
   claimableToSupplier: boolean
   reportedBy: string
   status: 'Pendiente' | 'Baja aprobada' | 'Enviado a reclamo' | 'Rechazado'
@@ -229,6 +281,9 @@ export interface ReceiptRecord {
   expiry: string | null
   partidaId: string
   claimId: string | null
+  receivedBy?: string
+  /** Fotos de las unidades dañadas en la descarga. */
+  photos?: string[]
 }
 
 export interface WmsTransfer {
@@ -301,7 +356,9 @@ export function move(
     return {
       ...p,
       lastOutAt:
-        type === 'Entrega' && params.outDateStr ? params.outDateStr : p.lastOutAt,
+        type === 'Entrega' && params.outDateStr
+          ? params.outDateStr
+          : p.lastOutAt,
       qty: nextQty,
     }
   })
@@ -422,6 +479,10 @@ export interface MerchandiseBuckets {
   porEntregar: BucketSummary & {
     activeOrdersCount: number
     overdueOrdersCount: number
+    /** Pedidos activos que aún no tienen factura emitida. */
+    unbilledOrdersCount: number
+    /** Valor de venta (precio facturado) de lo que falta entregar. */
+    saleValueCOP: number
   }
   danada: BucketSummary & {
     pendingReportsCount: number
@@ -457,6 +518,9 @@ export function computeBuckets(
 ): MerchandiseBuckets {
   const costMap = new Map<string, number>(
     input.skus.map((s) => [s.sku, s.unitCost])
+  )
+  const priceMap = new Map<string, number>(
+    input.skus.map((s) => [s.sku, s.unitPrice])
   )
   const unitCost = (sku: string) => costMap.get(sku) ?? 0
   const inScope = (wh: string) => scopeWarehouses.includes(wh)
@@ -506,7 +570,8 @@ export function computeBuckets(
       const isStale = daysIdle >= STALE_DAYS
       const isCritStale = daysIdle >= CRITICAL_STALE_DAYS
       const daysToExpiry = p.expiry ? daysBetween(todayStr, p.expiry) : null
-      const isExpiring = daysToExpiry !== null && daysToExpiry <= EXPIRY_WARN_DAYS
+      const isExpiring =
+        daysToExpiry !== null && daysToExpiry <= EXPIRY_WARN_DAYS
 
       if (isStale) stalePartidasCount++
       if (isCritStale) criticalStaleCount++
@@ -531,6 +596,20 @@ export function computeBuckets(
     const refDate = o.readyAt ?? o.createdAt
     return daysBetween(refDate, todayStr) > PICKUP_OVERDUE_DAYS
   })
+
+  const unbilledOrdersCount = activeOrders.filter((o) => !o.invoice).length
+  const saleValueCOP = activeOrders.reduce(
+    (sum, o) =>
+      sum +
+      o.lines.reduce(
+        (ls, l) =>
+          ls +
+          (l.qtyOrdered - l.qtyPickedUp) *
+            (l.unitPrice ?? priceMap.get(l.sku) ?? 0),
+        0
+      ),
+    0
+  )
 
   const pendingDamages = input.damages.filter(
     (d) => inScope(d.warehouse) && d.status === 'Pendiente'
@@ -576,6 +655,8 @@ export function computeBuckets(
       valueUSD: resCOP,
       activeOrdersCount: activeOrders.length,
       overdueOrdersCount: overdueOrders.length,
+      unbilledOrdersCount,
+      saleValueCOP,
     },
     danada: {
       units: danUnits,
@@ -608,4 +689,3 @@ export function computeBuckets(
     },
   }
 }
-

@@ -18,9 +18,15 @@ export const INITIAL_SKUS: SkuItem[] = [
     category: 'Porcelanatos',
     unitMeasure: 'Caja',
     unitCost: 105000,
+    unitPrice: 147000,
+    maxDiscountPct: 8,
     requiresExpiry: false,
     conversions: [
-      { targetUnit: 'm²', factor: 1.44, description: '1 Caja = 1.44 m² (2 baldosas)' },
+      {
+        targetUnit: 'm²',
+        factor: 1.44,
+        description: '1 Caja = 1.44 m² (2 baldosas)',
+      },
     ],
   },
   {
@@ -29,9 +35,15 @@ export const INITIAL_SKUS: SkuItem[] = [
     category: 'Porcelanatos',
     unitMeasure: 'Caja',
     unitCost: 92000,
+    unitPrice: 129000,
+    maxDiscountPct: 8,
     requiresExpiry: false,
     conversions: [
-      { targetUnit: 'm²', factor: 1.2, description: '1 Caja = 1.20 m² (5 tablas)' },
+      {
+        targetUnit: 'm²',
+        factor: 1.2,
+        description: '1 Caja = 1.20 m² (5 tablas)',
+      },
     ],
   },
   {
@@ -40,9 +52,15 @@ export const INITIAL_SKUS: SkuItem[] = [
     category: 'Porcelanatos',
     unitMeasure: 'Caja',
     unitCost: 75000,
+    unitPrice: 105000,
+    maxDiscountPct: 8,
     requiresExpiry: false,
     conversions: [
-      { targetUnit: 'm²', factor: 1.44, description: '1 Caja = 1.44 m² (4 baldosas)' },
+      {
+        targetUnit: 'm²',
+        factor: 1.44,
+        description: '1 Caja = 1.44 m² (4 baldosas)',
+      },
     ],
   },
   {
@@ -51,9 +69,15 @@ export const INITIAL_SKUS: SkuItem[] = [
     category: 'Cerámicas',
     unitMeasure: 'Caja',
     unitCost: 58000,
+    unitPrice: 78500,
+    maxDiscountPct: 8,
     requiresExpiry: false,
     conversions: [
-      { targetUnit: 'm²', factor: 2.02, description: '1 Caja = 2.02 m² (10 cerámicas)' },
+      {
+        targetUnit: 'm²',
+        factor: 2.02,
+        description: '1 Caja = 2.02 m² (10 cerámicas)',
+      },
     ],
   },
   {
@@ -62,9 +86,15 @@ export const INITIAL_SKUS: SkuItem[] = [
     category: 'Cerámicas',
     unitMeasure: 'Caja',
     unitCost: 49000,
+    unitPrice: 66000,
+    maxDiscountPct: 8,
     requiresExpiry: false,
     conversions: [
-      { targetUnit: 'm²', factor: 1.8, description: '1 Caja = 1.80 m² (10 cerámicas)' },
+      {
+        targetUnit: 'm²',
+        factor: 1.8,
+        description: '1 Caja = 1.80 m² (10 cerámicas)',
+      },
     ],
   },
   {
@@ -73,9 +103,15 @@ export const INITIAL_SKUS: SkuItem[] = [
     category: 'Revestimientos',
     unitMeasure: 'Caja',
     unitCost: 135000,
+    unitPrice: 196000,
+    maxDiscountPct: 6,
     requiresExpiry: false,
     conversions: [
-      { targetUnit: 'm²', factor: 1.08, description: '1 Caja = 1.08 m² (4 palmetas)' },
+      {
+        targetUnit: 'm²',
+        factor: 1.08,
+        description: '1 Caja = 1.08 m² (4 palmetas)',
+      },
     ],
   },
   {
@@ -84,6 +120,8 @@ export const INITIAL_SKUS: SkuItem[] = [
     category: 'Adhesivos y Morteros',
     unitMeasure: 'Saco',
     unitCost: 38000,
+    unitPrice: 49500,
+    maxDiscountPct: 5,
     requiresExpiry: true,
     conversions: [
       { targetUnit: 'kg', factor: 25.0, description: '1 Saco = 25.00 kg' },
@@ -95,6 +133,8 @@ export const INITIAL_SKUS: SkuItem[] = [
     category: 'Adhesivos y Morteros',
     unitMeasure: 'Saco',
     unitCost: 26000,
+    unitPrice: 34000,
+    maxDiscountPct: 5,
     requiresExpiry: true,
     conversions: [
       { targetUnit: 'kg', factor: 25.0, description: '1 Saco = 25.00 kg' },
@@ -106,6 +146,8 @@ export const INITIAL_SKUS: SkuItem[] = [
     category: 'Químicos y Selladores',
     unitMeasure: 'Balde',
     unitCost: 98000,
+    unitPrice: 135000,
+    maxDiscountPct: 5,
     requiresExpiry: true,
     conversions: [
       { targetUnit: 'kg', factor: 5.0, description: '1 Balde = 5.00 kg' },
@@ -117,9 +159,15 @@ export const INITIAL_SKUS: SkuItem[] = [
     category: 'Químicos y Selladores',
     unitMeasure: 'Balde',
     unitCost: 185000,
+    unitPrice: 255500,
+    maxDiscountPct: 5,
     requiresExpiry: true,
     conversions: [
-      { targetUnit: 'Litro', factor: 20.0, description: '1 Balde = 20.00 Litros' },
+      {
+        targetUnit: 'Litro',
+        factor: 20.0,
+        description: '1 Balde = 20.00 Litros',
+      },
     ],
   },
   {
@@ -128,9 +176,15 @@ export const INITIAL_SKUS: SkuItem[] = [
     category: 'Perfiles y Accesorios',
     unitMeasure: 'Tira',
     unitCost: 32000,
+    unitPrice: 45500,
+    maxDiscountPct: 7,
     requiresExpiry: false,
     conversions: [
-      { targetUnit: 'm', factor: 2.4, description: '1 Tira = 2.40 metros lineales' },
+      {
+        targetUnit: 'm',
+        factor: 2.4,
+        description: '1 Tira = 2.40 metros lineales',
+      },
     ],
   },
   {
@@ -139,6 +193,8 @@ export const INITIAL_SKUS: SkuItem[] = [
     category: 'Perfiles y Accesorios',
     unitMeasure: 'Caja',
     unitCost: 64000,
+    unitPrice: 91000,
+    maxDiscountPct: 7,
     requiresExpiry: false,
     conversions: [
       { targetUnit: 'Unidad', factor: 500, description: '1 Caja = 500 clips' },
@@ -155,7 +211,13 @@ export const INITIAL_PARTIDAS: Partida[] = [
     lastOutAt: '2026-10-18',
     receivedAt: '2026-09-28',
     supplier: 'Foshan Ceramics Co.',
-    qty: { disponible: 420, reservado: 120, danado: 18, reclamo: 12, transito: 36 },
+    qty: {
+      disponible: 420,
+      reservado: 120,
+      danado: 18,
+      reclamo: 12,
+      transito: 36,
+    },
   },
   {
     id: 'PAR-102',
@@ -174,8 +236,14 @@ export const INITIAL_PARTIDAS: Partida[] = [
     expiry: null,
     lastOutAt: '2026-10-19',
     receivedAt: '2026-09-10',
-    supplier: 'Cerámicas del Maule',
-    qty: { disponible: 680, reservado: 180, danado: 10, reclamo: 0, transito: 0 },
+    supplier: 'Cerámicas del Valle',
+    qty: {
+      disponible: 680,
+      reservado: 180,
+      danado: 10,
+      reclamo: 0,
+      transito: 0,
+    },
   },
   {
     id: 'PAR-104',
@@ -194,7 +262,7 @@ export const INITIAL_PARTIDAS: Partida[] = [
     expiry: null,
     lastOutAt: '2026-08-12', // 69 días sin salida (rezagado >= 60d)
     receivedAt: '2026-06-20',
-    supplier: 'Cerámicas del Maule',
+    supplier: 'Cerámicas del Valle',
     qty: { disponible: 140, reservado: 0, danado: 0, reclamo: 0, transito: 0 },
   },
   {
@@ -215,7 +283,13 @@ export const INITIAL_PARTIDAS: Partida[] = [
     lastOutAt: '2026-10-19',
     receivedAt: '2026-10-05',
     supplier: 'Morteros y Adhesivos Andes',
-    qty: { disponible: 410, reservado: 100, danado: 0, reclamo: 0, transito: 50 },
+    qty: {
+      disponible: 410,
+      reservado: 100,
+      danado: 0,
+      reclamo: 0,
+      transito: 50,
+    },
   },
   {
     id: 'PAR-203',
@@ -224,7 +298,7 @@ export const INITIAL_PARTIDAS: Partida[] = [
     expiry: '2026-11-15', // Vence en 26 días (<= 30d)
     lastOutAt: '2026-08-05', // 76 días sin salida (rezagado Y por vencer)
     receivedAt: '2026-04-18',
-    supplier: 'Química Constructiva Chile',
+    supplier: 'Química Constructiva Andina',
     qty: { disponible: 32, reservado: 0, danado: 0, reclamo: 4, transito: 0 },
   },
   {
@@ -234,7 +308,7 @@ export const INITIAL_PARTIDAS: Partida[] = [
     expiry: '2026-11-02', // Vence en 13 días
     lastOutAt: '2026-10-02',
     receivedAt: '2026-04-02',
-    supplier: 'Química Constructiva Chile',
+    supplier: 'Química Constructiva Andina',
     qty: { disponible: 18, reservado: 6, danado: 0, reclamo: 0, transito: 0 },
   },
   {
@@ -254,7 +328,7 @@ export const INITIAL_PARTIDAS: Partida[] = [
     expiry: null,
     lastOutAt: '2026-10-18',
     receivedAt: '2026-09-22',
-    supplier: 'Cerámicas del Maule',
+    supplier: 'Cerámicas del Valle',
     qty: { disponible: 310, reservado: 60, danado: 0, reclamo: 0, transito: 0 },
   },
   {
@@ -284,21 +358,100 @@ export const INITIAL_PARTIDAS: Partida[] = [
     expiry: null,
     lastOutAt: '2026-10-19',
     receivedAt: '2026-09-18',
-    supplier: 'Perfiles Metálicos Sur',
+    supplier: 'Perfiles Metálicos del Sur',
     qty: { disponible: 150, reservado: 30, danado: 0, reclamo: 0, transito: 0 },
   },
 ]
 
 export const INITIAL_ORDERS: PickupOrder[] = [
   {
+    id: 'PED-2199',
+    createdAt: '2026-10-06',
+    readyAt: '2026-10-06',
+    customer: 'Remodelaciones Hogar Nuevo',
+    customerRut: '900.254.771-3',
+    channel: 'Mostrador',
+    warehouse: 'BOD-CEN-01',
+    status: 'Entregado',
+    advisor: 'Laura Gómez',
+    invoice: {
+      number: 'FV-10380',
+      issuedAt: '2026-10-06',
+      status: 'Emitida',
+      paymentMethod: 'Efectivo',
+      source: 'Siigo (CSV)',
+      issuedBy: 'Natalia Cano',
+    },
+    lines: [
+      { sku: 'POR-6060-CEM', qtyOrdered: 24, qtyPickedUp: 24, allocations: [] },
+      { sku: 'NIV-CLIP-500', qtyOrdered: 4, qtyPickedUp: 4, allocations: [] },
+    ],
+    pickups: [
+      {
+        ts: '2026-10-07 10:05',
+        receivedByName: 'Mauricio Zapata',
+        receivedByRut: '71.338.902',
+        docRef: 'REM-104398',
+        deliveredBy: 'Camilo Rojas',
+        items: [
+          { sku: 'POR-6060-CEM', qty: 24 },
+          { sku: 'NIV-CLIP-500', qty: 4 },
+        ],
+      },
+    ],
+  },
+  {
+    id: 'PED-2217',
+    createdAt: '2026-10-18',
+    readyAt: '2026-10-18',
+    customer: 'Constructora Cumbres S.A.S.',
+    customerRut: '900.318.442-6',
+    channel: 'Obra',
+    warehouse: 'BOD-OBR-02',
+    status: 'Cancelado',
+    advisor: 'Diego Ruiz',
+    invoice: {
+      number: 'FV-10441',
+      issuedAt: '2026-10-18',
+      status: 'Anulada',
+      paymentMethod: 'Crédito',
+      source: 'Siigo (CSV)',
+      issuedBy: 'Natalia Cano',
+      voidedAt: '2026-10-19',
+      voidReason: 'Anulada en Siigo: facturada al cliente equivocado',
+    },
+    lines: [
+      { sku: 'CER-4545-TER', qtyOrdered: 50, qtyPickedUp: 20, allocations: [] },
+    ],
+    pickups: [
+      {
+        ts: '2026-10-18 15:40',
+        receivedByName: 'Pedro Quintero',
+        receivedByRut: '79.455.120',
+        docRef: 'REM-104420',
+        deliveredBy: 'Luis Prada',
+        items: [{ sku: 'CER-4545-TER', qty: 20 }],
+      },
+    ],
+  },
+  {
     id: 'PED-2201',
     createdAt: '2026-10-08',
     readyAt: '2026-10-09', // 11 días sin retirar (> 7d)
     customer: 'Constructora Los Andes · Torre Norte',
-    customerRut: '76.412.890-1',
+    customerRut: '900.412.890-1',
     channel: 'Obra',
     warehouse: 'BOD-CEN-01',
     status: 'Preparado',
+    advisor: 'Laura Gómez',
+    invoice: {
+      number: 'FV-10398',
+      issuedAt: '2026-10-08',
+      status: 'Emitida',
+      paymentMethod: 'Transferencia',
+      source: 'Siigo (CSV)',
+      issuedBy: 'Natalia Cano',
+    },
     lines: [
       {
         sku: 'POR-60120-CAL',
@@ -319,11 +472,20 @@ export const INITIAL_ORDERS: PickupOrder[] = [
     id: 'PED-2204',
     createdAt: '2026-10-10',
     readyAt: '2026-10-11', // 9 días sin retirar (> 7d)
-    customer: 'Instalaciones Cerámicas Maipú Ltda.',
-    customerRut: '77.109.442-K',
+    customer: 'Instalaciones Cerámicas El Roble S.A.S.',
+    customerRut: '900.109.442-5',
     channel: 'Mostrador',
     warehouse: 'BOD-MOR-04',
     status: 'Preparado',
+    advisor: 'Diego Ruiz',
+    invoice: {
+      number: 'FV-10405',
+      issuedAt: '2026-10-10',
+      status: 'Emitida',
+      paymentMethod: 'Crédito',
+      source: 'Siigo (CSV)',
+      issuedBy: 'Natalia Cano',
+    },
     lines: [
       {
         sku: 'ADH-FLEX-25K',
@@ -338,11 +500,20 @@ export const INITIAL_ORDERS: PickupOrder[] = [
     id: 'PED-2208',
     createdAt: '2026-10-17',
     readyAt: '2026-10-18',
-    customer: 'Inmobiliaria Renca · Etapa 2',
-    customerRut: '76.998.120-5',
+    customer: 'Inmobiliaria Altos del Valle · Etapa 2',
+    customerRut: '900.998.120-5',
     channel: 'Obra',
     warehouse: 'BOD-OBR-02',
     status: 'Retiro parcial',
+    advisor: 'Laura Gómez',
+    invoice: {
+      number: 'FV-10431',
+      issuedAt: '2026-10-17',
+      status: 'Emitida',
+      paymentMethod: 'Transferencia',
+      source: 'Siigo (CSV)',
+      issuedBy: 'Natalia Cano',
+    },
     lines: [
       {
         sku: 'POR-60120-CAL',
@@ -361,8 +532,9 @@ export const INITIAL_ORDERS: PickupOrder[] = [
       {
         ts: '2026-10-18 15:20',
         receivedByName: 'Juan Carlos Tapia',
-        receivedByRut: '14.552.810-2',
-        docRef: 'GD-104412',
+        receivedByRut: '14.552.810',
+        docRef: 'REM-104412',
+        deliveredBy: 'Luis Prada',
         items: [
           { sku: 'POR-60120-CAL', qty: 40 },
           { sku: 'PER-ALU-240', qty: 10 },
@@ -375,10 +547,19 @@ export const INITIAL_ORDERS: PickupOrder[] = [
     createdAt: '2026-10-19',
     readyAt: '2026-10-20',
     customer: 'Obra Edificio Mirador',
-    customerRut: '76.501.330-8',
+    customerRut: '900.501.330-8',
     channel: 'Obra',
     warehouse: 'BOD-CEN-01',
     status: 'Preparado',
+    advisor: 'Diego Ruiz',
+    invoice: {
+      number: 'FV-10447',
+      issuedAt: '2026-10-19',
+      status: 'Emitida',
+      paymentMethod: 'Crédito',
+      source: 'Siigo (CSV)',
+      issuedBy: 'Natalia Cano',
+    },
     lines: [
       {
         sku: 'CER-4545-TER',
@@ -400,10 +581,12 @@ export const INITIAL_ORDERS: PickupOrder[] = [
     createdAt: '2026-10-20',
     readyAt: null,
     customer: 'Condominio Alameda Sur',
-    customerRut: '78.220.115-4',
+    customerRut: '900.220.115-4',
     channel: 'Obra',
     warehouse: 'BOD-MOR-04',
     status: 'Reservado',
+    advisor: 'Diego Ruiz',
+    invoice: null,
     lines: [
       {
         sku: 'ADH-FLEX-25K',
@@ -424,11 +607,20 @@ export const INITIAL_ORDERS: PickupOrder[] = [
     id: 'PED-2215',
     createdAt: '2026-10-20',
     readyAt: '2026-10-20',
-    customer: 'Arquitectura y Diseño Las Condes',
-    customerRut: '76.774.910-3',
+    customer: 'Arquitectura y Diseño Laureles',
+    customerRut: '900.774.910-3',
     channel: 'Showroom' as 'Mostrador',
     warehouse: 'BOD-SHW-03',
     status: 'Preparado',
+    advisor: 'Laura Gómez',
+    invoice: {
+      number: 'FV-10456',
+      issuedAt: '2026-10-20',
+      status: 'Emitida',
+      paymentMethod: 'Tarjeta',
+      source: 'Caja',
+      issuedBy: 'Natalia Cano',
+    },
     lines: [
       {
         sku: 'REV-3090-3D',
@@ -449,11 +641,20 @@ export const INITIAL_ORDERS: PickupOrder[] = [
     id: 'PED-2216',
     createdAt: '2026-10-20',
     readyAt: null,
-    customer: 'Ferretería y Acabados San Bernardo',
-    customerRut: '76.310.908-7',
+    customer: 'Ferretería y Acabados San Rafael',
+    customerRut: '900.310.908-7',
     channel: 'Web',
     warehouse: 'BOD-CEN-01',
     status: 'Reservado',
+    advisor: 'Tienda web',
+    invoice: {
+      number: 'FV-10458',
+      issuedAt: '2026-10-20',
+      status: 'Emitida',
+      paymentMethod: 'Transferencia',
+      source: 'Siigo (CSV)',
+      issuedBy: 'Natalia Cano',
+    },
     lines: [
       {
         sku: 'POR-60120-CAL',
@@ -479,7 +680,7 @@ export const INITIAL_DAMAGES: DamageReport[] = [
     reason: 'Caída de esquina de pallet durante movimiento con horquilla',
     evidence: 'Acta #104 y 3 fotos de cajas quebradas',
     claimableToSupplier: false,
-    reportedBy: 'Operario de Bodega',
+    reportedBy: 'Camilo Rojas',
     status: 'Pendiente',
   },
   {
@@ -494,7 +695,7 @@ export const INITIAL_DAMAGES: DamageReport[] = [
     reason: 'Cajas aplastadas en base de estiba',
     evidence: 'Foto registro patio #88',
     claimableToSupplier: false,
-    reportedBy: 'Operario de Bodega',
+    reportedBy: 'Camilo Rojas',
     status: 'Pendiente',
   },
   {
@@ -507,9 +708,9 @@ export const INITIAL_DAMAGES: DamageReport[] = [
     valueCOP: 228000,
     valueUSD: 228000, // <= COP 1.200.000 -> Aprueba JB
     reason: 'Sacos rotos con humedad de origen en pallet sellado',
-    evidence: 'Guía recepción #77310 · foto lote',
+    evidence: 'Remisión de recepción #77310 · foto lote',
     claimableToSupplier: true,
-    reportedBy: 'Operario de Bodega',
+    reportedBy: 'Camilo Rojas',
     status: 'Pendiente',
   },
 ]
@@ -561,7 +762,7 @@ export const INITIAL_ADJUSTMENTS: InventoryAdjustment[] = [
     valueUSD: 1575000, // > COP 1.200.000 -> Requiere Gerencia o ADM
     reason: 'Faltante detectado en conteo ciego CNT-400',
     evidence: 'Planilla conteo CNT-400 firmada',
-    requestedBy: 'Jefe de Bodega',
+    requestedBy: 'Roberto Castaño',
     status: 'Pendiente',
   },
   {
@@ -576,7 +777,7 @@ export const INITIAL_ADJUSTMENTS: InventoryAdjustment[] = [
     valueUSD: 464000, // <= COP 1.200.000 -> Puede aprobar JB o ADM
     reason: 'Diferencia en recuento de patio constructor',
     evidence: 'Acta de arqueo BOD-OBR-02',
-    requestedBy: 'Jefe de Bodega',
+    requestedBy: 'Roberto Castaño',
     status: 'Pendiente',
   },
 ]
@@ -601,7 +802,7 @@ export const INITIAL_CLAIMS: ClaimCase[] = [
     id: 'REC-702',
     createdAt: '2026-10-18',
     type: 'Proveedor',
-    counterparty: 'Química Constructiva Chile',
+    counterparty: 'Química Constructiva Andina',
     docRef: 'OC-2026-0319',
     partidaId: 'PAR-203',
     sku: 'FRG-EPOX-05K',
@@ -616,8 +817,8 @@ export const INITIAL_CLAIMS: ClaimCase[] = [
     id: 'REC-703',
     createdAt: '2026-10-19',
     type: 'Cliente',
-    counterparty: 'Inmobiliaria Renca · Etapa 2',
-    docRef: 'GD-104412',
+    counterparty: 'Inmobiliaria Altos del Valle · Etapa 2',
+    docRef: 'REM-104412',
     partidaId: 'PAR-301',
     sku: 'POR-60120-CAL',
     warehouse: 'BOD-OBR-02',
@@ -657,10 +858,10 @@ export const INITIAL_TRANSFERS: WmsTransfer[] = [
     qtySent: 36,
     qtyReceived: null,
     status: 'En tránsito',
-    carrier: 'Camión Plataforma #02',
+    carrier: 'Vehículo de carga #02',
     guideNumber: 'GDT-CL-889120',
-    requestedBy: 'Diego Araneda (JB)',
-    approvedBy: 'Roberto Méndez (JB)',
+    requestedBy: 'Carla Vélez (JB)',
+    approvedBy: 'Roberto Castaño (JB)',
     notes: 'Reposición de stock para retiro en Showroom',
   },
   {
@@ -675,11 +876,12 @@ export const INITIAL_TRANSFERS: WmsTransfer[] = [
     qtySent: 50,
     qtyReceived: null,
     status: 'En tránsito',
-    carrier: 'Transporte Carga Sur',
+    carrier: 'Transporte de Carga del Sur',
     guideNumber: 'GDT-CL-889145',
-    requestedBy: 'Carla Valdivia (JB)',
-    approvedBy: 'Patricia Soto (JB)',
-    notes: '1 Pallet (50 sacos) para retiro de instaladores en Renca',
+    requestedBy: 'Carla Vélez (JB)',
+    approvedBy: 'Roberto Castaño (JB)',
+    notes:
+      '1 Pallet (50 sacos) para retiro de instaladores en la sala de ventas',
   },
   {
     id: 'TRB-2026-0414',
@@ -693,11 +895,11 @@ export const INITIAL_TRANSFERS: WmsTransfer[] = [
     qtySent: 0,
     qtyReceived: null,
     status: 'Solicitado',
-    carrier: 'Camión Plataforma #01',
+    carrier: 'Vehículo de carga #01',
     guideNumber: 'Pendiente emisión',
-    requestedBy: 'Carla Valdivia (JB)',
+    requestedBy: 'Carla Vélez (JB)',
     approvedBy: 'Pendiente aprobación',
-    notes: 'Refuerzo de stock para pedidos de mostrador en Renca',
+    notes: 'Refuerzo de stock para pedidos de mostrador en la sala de ventas',
   },
 ]
 
@@ -721,7 +923,7 @@ export const INITIAL_RECEIPTS: ReceiptRecord[] = [
     id: 'ING-502',
     createdAt: '2026-10-18 09:40',
     docRef: 'OC-2026-0319',
-    supplier: 'Química Constructiva Chile',
+    supplier: 'Química Constructiva Andina',
     warehouse: 'BOD-MOR-04',
     sku: 'FRG-EPOX-05K',
     expectedQty: 36,
@@ -746,7 +948,7 @@ export const INITIAL_MOVEMENTS: Movement[] = [
     toState: 'disponible',
     qty: 438,
     ref: 'OC-2026-0312',
-    user: 'Operario de Bodega',
+    user: 'Camilo Rojas',
   },
   {
     id: 'MOV-9002',
@@ -759,7 +961,7 @@ export const INITIAL_MOVEMENTS: Movement[] = [
     toState: 'reclamo',
     qty: 12,
     ref: 'REC-701 · OC-2026-0312',
-    user: 'Operario de Bodega',
+    user: 'Camilo Rojas',
   },
   {
     id: 'MOV-9003',
@@ -772,7 +974,7 @@ export const INITIAL_MOVEMENTS: Movement[] = [
     toState: null,
     qty: 6,
     ref: 'AJ-899 · Faltante en conteo mensual',
-    user: 'Jefe de Bodega',
+    user: 'Roberto Castaño',
   },
   {
     id: 'MOV-9004',
@@ -785,7 +987,7 @@ export const INITIAL_MOVEMENTS: Movement[] = [
     toState: null,
     qty: 5,
     ref: 'DMG-298 · Sacos rotos en patio',
-    user: 'Jefe de Bodega',
+    user: 'Roberto Castaño',
   },
   {
     id: 'MOV-9005',
@@ -798,7 +1000,7 @@ export const INITIAL_MOVEMENTS: Movement[] = [
     toState: null,
     qty: 40,
     ref: 'PED-2208 · GD-104412',
-    user: 'Operario de Bodega',
+    user: 'Camilo Rojas',
   },
   {
     id: 'MOV-9006',
@@ -811,7 +1013,7 @@ export const INITIAL_MOVEMENTS: Movement[] = [
     toState: 'danado',
     qty: 18,
     ref: 'DMG-301',
-    user: 'Operario de Bodega',
+    user: 'Camilo Rojas',
   },
   {
     id: 'MOV-9007',
@@ -824,7 +1026,6 @@ export const INITIAL_MOVEMENTS: Movement[] = [
     toState: 'reclamo',
     qty: 8,
     ref: 'REC-703 · GD-104412',
-    user: 'Jefe de Bodega',
+    user: 'Roberto Castaño',
   },
 ]
-

@@ -29,11 +29,9 @@ async function renderConfigDrawer({
 
 async function openDrawer(screen: RenderResult) {
   await userEvent.click(
-    screen.getByRole('button', { name: /^Open theme settings$/i })
+    screen.getByRole('button', { name: /^Abrir configuración$/i })
   )
-  await expect
-    .element(screen.getByText(/^Theme Settings$/i))
-    .toBeInTheDocument()
+  await expect.element(screen.getByText(/^Apariencia$/i)).toBeInTheDocument()
 }
 
 describe('ConfigDrawer (integration)', () => {
@@ -51,7 +49,7 @@ describe('ConfigDrawer (integration)', () => {
 
     await openDrawer(screen)
 
-    const drawer = screen.getByRole('dialog', { name: /theme settings/i })
+    const drawer = screen.getByRole('dialog', { name: /apariencia/i })
 
     await expect.element(drawer).toBeInTheDocument()
 

@@ -1,34 +1,41 @@
 import { useState } from 'react'
-import { z } from 'zod'
-import { useForm } from 'react-hook-form'
-import { zodResolver } from '@hookform/resolvers/zod'
-import { Link, useNavigate } from '@tanstack/react-router'
-import { Loader2, LogIn } from 'lucide-react'
-import { toast } from 'sonner'
-import { IconFacebook, IconGithub } from '@/assets/brand-icons'
+import { useNavigate } from '@tanstack/react-router'
+import { LogIn } from 'lucide-react'
 import { useAuthStore } from '@/stores/auth-store'
-import { sleep, cn } from '@/lib/utils'
+import { setSessionUserId } from '@/lib/session'
+import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
-import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { PasswordInput } from '@/components/password-input'
+import { WMS_ROLES, landingSlugForRole } from '@/features/wms/data/catalog'
+import { loadUsers } from '@/features/wms/data/persistence'
+import { type WmsUser } from '@/features/wms/data/users-data'
 
-const formSchema = z.object({
-  email: z.email({
-    error: (iss) => (iss.input === '' ? 'Please enter your email.' : undefined),
-  }),
-  password: z
-    .string()
-    .min(1, 'Please enter your password.')
-    .min(7, 'Password must be at least 7 characters long.'),
-})
+type AuthApi = ReturnType<typeof useAuthStore.getState>['auth']
+
+/** Abre la sesión de la persona y la lleva a su pantalla de trabajo. */
+function completeSignIn(
+  user: WmsUser,
+  auth: AuthApi,
+  navigate: ReturnType<typeof useNavigate>,
+  redirectTo?: string
+) {
+  setSessionUserId(user.id)
+  auth.setUser({
+    accountNo: user.id,
+    email: user.email,
+    role: [user.role],
+    exp: new Date().getTime() + 24 * 60 * 60 * 1000,
+  })
+  auth.setAccessToken(`session-${user.id}`)
+  const landing = landingSlugForRole(user.role)
+  const fallback = landing === '1-1' ? '/' : `/wms/${landing}`
+  // El destino guardado solo se respeta si la persona arranca en el resumen.
+  navigate({
+    to: redirectTo && landing === '1-1' ? redirectTo : fallback,
+    replace: true,
+  })
+}
 
 interface UserAuthFormProps extends React.HTMLAttributes<HTMLFormElement> {
   redirectTo?: string
@@ -39,112 +46,124 @@ export function UserAuthForm({
   redirectTo,
   ...props
 }: UserAuthFormProps) {
-  const [isLoading, setIsLoading] = useState(false)
   const navigate = useNavigate()
   const { auth } = useAuthStore()
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [error, setError] = useState<string | null>(null)
 
-  const form = useForm<z.infer<typeof formSchema>>({
-    resolver: zodResolver(formSchema),
-    defaultValues: {
-      email: '',
-      password: '',
-    },
-  })
-
-  function onSubmit(data: z.infer<typeof formSchema>) {
-    setIsLoading(true)
-
-    toast.promise(sleep(2000), {
-      loading: 'Signing in...',
-      success: () => {
-        setIsLoading(false)
-
-        // Mock successful authentication with expiry computed at success time
-        const mockUser = {
-          accountNo: 'ACC001',
-          email: data.email,
-          role: ['user'],
-          exp: Date.now() + 24 * 60 * 60 * 1000, // 24 hours from now
-        }
-
-        // Set user and access token
-        auth.setUser(mockUser)
-        auth.setAccessToken('mock-access-token')
-
-        // Redirect to the stored location or default to dashboard
-        const targetPath = redirectTo || '/'
-        navigate({ to: targetPath, replace: true })
-
-        return `Welcome back, ${data.email}!`
-      },
-      error: 'Error',
-    })
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!email.trim()) {
+      setError('Escribe tu correo.')
+      return
+    }
+    if (!password) {
+      setError('Escribe tu clave.')
+      return
+    }
+    const user = loadUsers().find(
+      (u) => u.email.toLowerCase() === email.trim().toLowerCase()
+    )
+    if (!user || user.pin !== password) {
+      setError('El correo o la clave no coinciden. Revisa e intenta de nuevo.')
+      return
+    }
+    if (!user.active) {
+      setError(
+        'Este usuario está desactivado. Pide a un administrador que lo active.'
+      )
+      return
+    }
+    setError(null)
+    completeSignIn(user, auth, navigate, redirectTo)
   }
 
   return (
-    <Form {...form}>
-      <form
-        onSubmit={form.handleSubmit(onSubmit)}
-        className={cn('grid gap-3', className)}
-        {...props}
-      >
-        <FormField
-          control={form.control}
-          name='email'
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Email</FormLabel>
-              <FormControl>
-                <Input placeholder='name@example.com' {...field} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
+    <form
+      onSubmit={handleSubmit}
+      className={cn('grid gap-4', className)}
+      noValidate
+      {...props}
+    >
+      <div className='grid gap-1.5'>
+        <label htmlFor='login-email' className='text-sm font-medium'>
+          Correo
+        </label>
+        <Input
+          id='login-email'
+          type='email'
+          autoComplete='username'
+          placeholder='nombre@decor.demo'
+          className='h-11'
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
         />
-        <FormField
-          control={form.control}
-          name='password'
-          render={({ field }) => (
-            <FormItem className='relative'>
-              <FormLabel>Password</FormLabel>
-              <FormControl>
-                <PasswordInput placeholder='********' {...field} />
-              </FormControl>
-              <FormMessage />
-              <Link
-                to='/forgot-password'
-                className='absolute inset-e-0 -top-0.5 text-sm font-medium text-muted-foreground hover:opacity-75'
-              >
-                Forgot password?
-              </Link>
-            </FormItem>
-          )}
+      </div>
+      <div className='grid gap-1.5'>
+        <label htmlFor='login-password' className='text-sm font-medium'>
+          Clave
+        </label>
+        <PasswordInput
+          id='login-password'
+          autoComplete='current-password'
+          placeholder='Tu clave'
+          className='[&_input]:h-11'
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
         />
-        <Button className='mt-2' disabled={isLoading}>
-          {isLoading ? <Loader2 className='animate-spin' /> : <LogIn />}
-          Sign in
-        </Button>
+      </div>
+      {error && (
+        <p role='alert' className='text-sm text-danger-ink'>
+          {error}
+        </p>
+      )}
+      <Button type='submit' className='h-11 text-base'>
+        <LogIn /> Ingresar
+      </Button>
+    </form>
+  )
+}
 
-        <div className='relative my-2'>
-          <div className='absolute inset-0 flex items-center'>
-            <span className='w-full border-t' />
-          </div>
-          <div className='relative flex justify-center text-xs uppercase'>
-            <span className='bg-background px-2 text-muted-foreground'>
-              Or continue with
-            </span>
-          </div>
-        </div>
+/** Acceso rápido para la demostración: entra directo como ese usuario. */
+export function DemoUserList({ redirectTo }: { redirectTo?: string }) {
+  const navigate = useNavigate()
+  const { auth } = useAuthStore()
+  const users = loadUsers().filter((u) => u.active)
 
-        <div className='grid grid-cols-2 gap-2'>
-          <Button variant='outline' type='button' disabled={isLoading}>
-            <IconGithub className='h-4 w-4' /> GitHub
-          </Button>
-          <Button variant='outline' type='button' disabled={isLoading}>
-            <IconFacebook className='h-4 w-4' /> Facebook
-          </Button>
-        </div>
-      </form>
-    </Form>
+  return (
+    <div className='space-y-2'>
+      <p className='text-sm font-medium'>Entrar como (demostración)</p>
+      <ul className='grid gap-1.5 sm:grid-cols-2'>
+        {users.map((u) => (
+          <li key={u.id}>
+            <button
+              type='button'
+              onClick={() => completeSignIn(u, auth, navigate, redirectTo)}
+              className='flex w-full items-center gap-3 rounded-lg border bg-card px-3 py-2 text-start transition-colors hover:bg-accent'
+            >
+              <span className='flex size-8 shrink-0 items-center justify-center rounded-full bg-accent text-xs font-semibold text-accent-foreground'>
+                {u.name
+                  .split(' ')
+                  .map((p) => p[0])
+                  .slice(0, 2)
+                  .join('')}
+              </span>
+              <span className='min-w-0'>
+                <span className='block truncate text-sm font-medium'>
+                  {u.name}
+                </span>
+                <span className='block truncate text-xs text-muted-foreground'>
+                  {WMS_ROLES[u.role].name}
+                </span>
+              </span>
+            </button>
+          </li>
+        ))}
+      </ul>
+      <p className='text-xs text-muted-foreground'>
+        Clave de todos los usuarios de demostración: 1234
+      </p>
+    </div>
   )
 }

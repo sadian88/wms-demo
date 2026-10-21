@@ -1,139 +1,68 @@
-import { cop, nf } from '@/features/wms/screens/ui-helpers'
+import { cn } from '@/lib/utils'
+import { TONE, type Tone } from '@/features/wms/components/kit'
 
 export interface AgingBucketData {
-  key: '0-30' | '31-60' | '61-90' | '90+'
+  key: string
+  /** Texto corto del tramo, p. ej. «60–89 d». */
   label: string
-  rangeText: string
-  units: number
-  valueCOP?: number
-  valueUSD: number
-  partidasCount: number
-  color: string
-  bgLight: string
-  borderLight: string
-  statusText: string
+  /** Cantidad de partidas en el tramo. */
+  partidas: number
+  tone: Tone
 }
 
-interface AgingChartProps {
-  buckets: AgingBucketData[]
-  totalUnits: number
-  totalCOP?: number
-  totalUSD?: number
-  selectedKey?: string | null
-  onSelectBucket?: (key: '0-30' | '31-60' | '61-90' | '90+' | null) => void
-  className?: string
-}
-
+/**
+ * Barra única que resume cuántas partidas hay en cada tramo de días sin salida.
+ * Solo informa: no filtra ni abre nada.
+ */
 export function AgingChart({
   buckets,
-  totalUnits,
-  totalCOP,
-  totalUSD,
-  selectedKey,
-  onSelectBucket,
-  className = '',
-}: AgingChartProps) {
-  // Find max value to normalize bar heights
-  const maxUnits = Math.max(1, ...buckets.map((b) => b.units))
-  const displayTotalAmount = totalCOP ?? totalUSD ?? 0
+  className,
+}: {
+  buckets: AgingBucketData[]
+  className?: string
+}) {
+  const total = buckets.reduce((sum, b) => sum + b.partidas, 0)
+  const summary = buckets.map((b) => `${b.label}: ${b.partidas}`).join(', ')
 
   return (
-    <div className={`space-y-4 rounded-xl border bg-card p-4 ${className}`}>
-      <div className='flex flex-wrap items-center justify-between gap-2 border-b pb-3'>
-        <div>
-          <h3 className='text-sm font-semibold'>
-            Envejecimiento de Inventario (Aging Buckets)
-          </h3>
-          <p className='text-xs text-muted-foreground'>
-            Capital inmovilizado según días desde la última salida o recepción
-          </p>
-        </div>
-        <div className='flex items-center gap-3 text-xs'>
-          <span className='text-muted-foreground'>Total evaluado:</span>
-          <span className='font-bold tabular-nums text-foreground'>
-            {nf(totalUnits)} uds
-          </span>
-          <span className='font-bold tabular-nums text-primary'>
-            {cop(displayTotalAmount)}
-          </span>
-        </div>
+    <div className={cn('rounded-xl border bg-card p-4 sm:p-5', className)}>
+      <div className='flex items-baseline justify-between gap-3'>
+        <h2 className='font-semibold'>Partidas por días sin salida</h2>
+        <span className='text-sm text-muted-foreground tabular-nums'>
+          {total} en total
+        </span>
       </div>
 
-      {/* Grid of 4 Aging Columns */}
-      <div className='grid grid-cols-2 gap-3 sm:grid-cols-4'>
-        {buckets.map((b) => {
-          const heightPct = Math.max(12, Math.round((b.units / maxUnits) * 100))
-          const isSelected = selectedKey === b.key
-          const isDimmed = selectedKey !== null && selectedKey !== undefined && !isSelected
-          const unitPct = totalUnits > 0 ? ((b.units / totalUnits) * 100).toFixed(1) : '0'
-
-          return (
-            <button
+      <div
+        role='img'
+        aria-label={`Partidas por días sin salida. ${summary}`}
+        className='mt-3 flex h-3 gap-0.5 overflow-hidden rounded-full bg-muted'
+      >
+        {buckets
+          .filter((b) => b.partidas > 0)
+          .map((b) => (
+            <div
               key={b.key}
-              type='button'
-              onClick={() => {
-                if (onSelectBucket) {
-                  onSelectBucket(isSelected ? null : b.key)
-                }
-              }}
-              className={`group flex flex-col justify-between rounded-lg border p-3 text-start transition-all cursor-pointer ${
-                isSelected
-                  ? 'ring-2 ring-primary border-primary bg-muted/40 shadow-sm'
-                  : isDimmed
-                    ? 'opacity-50 hover:opacity-100 bg-background'
-                    : 'bg-background hover:bg-muted/30'
-              }`}
-            >
-              {/* Header */}
-              <div className='w-full'>
-                <div className='flex items-center justify-between'>
-                  <span className='text-xs font-semibold text-foreground'>
-                    {b.rangeText}
-                  </span>
-                  <span
-                    className='size-2.5 rounded-full shrink-0'
-                    style={{ backgroundColor: b.color }}
-                  />
-                </div>
-                <span className='text-[10px] text-muted-foreground block truncate'>
-                  {b.label}
-                </span>
-              </div>
-
-              {/* Visual Vertical Bar Container */}
-              <div className='my-3 flex h-24 w-full items-end rounded-md bg-muted/40 p-1.5'>
-                <div
-                  className='w-full rounded-sm transition-all duration-300'
-                  style={{
-                    height: `${heightPct}%`,
-                    backgroundColor: b.color,
-                  }}
-                />
-              </div>
-
-              {/* Data & Financial Breakdown */}
-              <div className='w-full space-y-1 text-xs'>
-                <div className='flex items-baseline justify-between'>
-                  <span className='text-base font-bold tabular-nums text-foreground'>
-                    {nf(b.units)} <span className='text-[10px] font-normal'>uds</span>
-                  </span>
-                  <span className='text-[10px] text-muted-foreground tabular-nums'>
-                    {unitPct}%
-                  </span>
-                </div>
-                <div className='flex items-center justify-between border-t pt-1'>
-                  <span className='text-[10px] text-muted-foreground'>
-                    {b.partidasCount} partidas
-                  </span>
-                  <span className='font-semibold tabular-nums text-foreground text-[11px]'>
-                    {cop(b.valueCOP ?? b.valueUSD)}
-                  </span>
-                </div>
-              </div>
-            </button>
-          )
-        })}
+              className={cn('h-full min-w-2', TONE[b.tone].bar)}
+              style={{ flexGrow: b.partidas, flexBasis: 0 }}
+            />
+          ))}
       </div>
+
+      <ul className='mt-3 grid grid-cols-2 gap-x-4 gap-y-2 sm:grid-cols-4'>
+        {buckets.map((b) => (
+          <li key={b.key} className='flex items-center gap-2 text-sm'>
+            <span
+              aria-hidden
+              className={cn('size-2 shrink-0 rounded-full', TONE[b.tone].dot)}
+            />
+            <span className='text-muted-foreground'>{b.label}</span>
+            <span className='ms-auto font-semibold tabular-nums sm:ms-0'>
+              {b.partidas}
+            </span>
+          </li>
+        ))}
+      </ul>
     </div>
   )
 }

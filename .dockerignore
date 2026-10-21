@@ -1,0 +1,34 @@
+# Solo lo necesario para compilar entra al contexto de build
+.git
+.github
+.gitignore
+.vscode
+.idea
+.tanstack
+.claude
+**/.DS_Store
+
+node_modules
+dist
+dist-ssr
+coverage
+**/__screenshots__
+.vitest-attachments
+
+# Documentación y archivos de desarrollo (no se sirven)
+docs
+*.md
+CHANGELOG.md
+LICENSE
+cz.yaml
+knip.config.ts
+netlify.toml
+
+# El proyecto usa pnpm: se ignora el lockfile de npm si existe
+package-lock.json
+
+Dockerfile
+.dockerignore
+*.log
+.env
+.env.*

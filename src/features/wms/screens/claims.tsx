@@ -1,664 +1,724 @@
 import { useState } from 'react'
 import {
-  Calendar,
-  Clock,
+  AlertTriangle,
+  ChevronRight,
+  CheckCircle2,
   Plus,
   Send,
   Truck,
+  Undo2,
   User,
+  FileText,
+  Trash2,
 } from 'lucide-react'
-import { Badge } from '@/components/ui/badge'
+import { useWms } from '@/context/wms-provider'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
-import { useWms } from '@/context/wms-provider'
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from '@/components/ui/sheet'
+import {
+  Callout,
+  DefRow,
+  Field,
+  FilterTabs,
+  ListRow,
+  SELECT_CLASS,
+  StatStrip,
+  StatusPill,
+  type Tone,
+} from '@/features/wms/components/kit'
 import {
   AgingChart,
   type AgingBucketData,
 } from '@/features/wms/components/visual/aging-chart'
+import { TODAY_STR } from '@/features/wms/domain/clock'
 import {
   CRITICAL_STALE_DAYS,
   EXPIRY_WARN_DAYS,
   STALE_DAYS,
   daysBetween,
+  type ClaimCase,
 } from '@/features/wms/domain/inventory'
-import { EmptyState, KpiCard, PageHeader, cop, nf } from './ui-helpers'
+import { ActionOption } from './action-option'
+import { EmptyState, PageHeader, cop, nf, shortDate } from './ui-helpers'
+import { qtyText } from './unit-labels'
 
-const TODAY_STR = '2026-10-20'
+type ClaimAction = Parameters<ReturnType<typeof useWms>['advanceClaim']>[1]
 
-// 6.1 Reclamos y devoluciones
+const CLAIM_PILL: Record<ClaimCase['status'], Tone> = {
+  Abierto: 'warning',
+  Enviado: 'info',
+  Resuelto: 'success',
+}
+
+function ageText(createdAt: string): string {
+  const d = daysBetween(createdAt, TODAY_STR)
+  if (d <= 0) return 'hoy'
+  return d === 1 ? 'hace 1 día' : `hace ${d} días`
+}
+
+/* -------------------------------------------------------------------------- */
+/*  6.1 Reclamos y devoluciones                                                */
+/* -------------------------------------------------------------------------- */
+
 export function ClaimsScreen() {
   const {
     role,
+    isReadOnly,
+    skus,
     partidas,
     claims,
-    buckets,
+    warehouses,
     matchesScope,
-    openCustomerReturn,
     advanceClaim,
   } = useWms()
 
-  const canAct = role === 'ADM' || role === 'JB'
-  const scopedPartidas = partidas.filter((p) => matchesScope(p.warehouse))
-  const list = claims.filter((c) => matchesScope(c.warehouse))
+  const canAct = !isReadOnly && (role === 'ADM' || role === 'JB')
 
-  const [retOpen, setRetOpen] = useState(false)
-  const [customer, setCustomer] = useState('')
-  const [docRef, setDocRef] = useState('GD-104490')
-  const [partidaId, setPartidaId] = useState(scopedPartidas[0]?.id ?? '')
-  const [qty, setQty] = useState('4')
-  const [reason, setReason] = useState('Sobrante de obra en cajas cerradas')
+  const [tab, setTab] = useState<'all' | 'Proveedor' | 'Cliente'>('all')
+  const [detailId, setDetailId] = useState<string | null>(null)
+  const [returnOpen, setReturnOpen] = useState(false)
+
+  const skuOf = (code: string) => skus.find((s) => s.sku === code)
+
+  const scoped = claims.filter((c) => matchesScope(c.warehouse))
+  const rank = (c: ClaimCase) => (c.status === 'Resuelto' ? 1 : 0)
+  const visible = scoped
+    .filter((c) => tab === 'all' || c.type === tab)
+    .sort((a, b) => rank(a) - rank(b) || b.createdAt.localeCompare(a.createdAt))
+
+  const open = scoped.filter((c) => c.status === 'Abierto').length
+  const sent = scoped.filter((c) => c.status === 'Enviado').length
+  const pendingValue = scoped
+    .filter((c) => c.status !== 'Resuelto')
+    .reduce((sum, c) => sum + c.valueCOP, 0)
+
+  const detail = scoped.find((c) => c.id === detailId) ?? null
 
   return (
     <div className='space-y-6'>
       <PageHeader
-        title='Reclamos a proveedor y devoluciones de clientes'
-        subtitle='Toda mercadería averiada o devuelta permanece aislada sin contaminar el stock vendible.'
+        title='Reclamos y devoluciones'
         actions={
           canAct ? (
-            <Button size='sm' onClick={() => setRetOpen(true)} className='text-xs'>
-              <Plus className='mr-1.5 size-4' />
+            <Button
+              onClick={() => setReturnOpen(true)}
+              className='h-11 gap-2 sm:h-10'
+            >
+              <Plus />
               Registrar devolución de cliente
             </Button>
           ) : undefined
         }
       />
 
-      {/* KPI Cards */}
-      <div className='grid grid-cols-2 gap-3 lg:grid-cols-3'>
-        <KpiCard
-          label='Unidades físicas en estado Reclamo'
-          value={`${nf(buckets.porReclamar.units)} uds`}
-          sub={cop(buckets.porReclamar.valueCOP ?? buckets.porReclamar.valueUSD)}
-          tone={buckets.porReclamar.units > 0 ? 'text-amber-600' : undefined}
+      <StatStrip
+        items={[
+          {
+            label: 'Abiertos',
+            value: nf(open),
+            tone: open > 0 ? 'warning' : 'neutral',
+          },
+          {
+            label: 'Enviados',
+            value: nf(sent),
+            tone: sent > 0 ? 'info' : 'neutral',
+          },
+          { label: 'Valor en reclamo', value: cop(pendingValue) },
+        ]}
+      />
+
+      <div className='space-y-3'>
+        <FilterTabs
+          value={tab}
+          onChange={setTab}
+          options={[
+            { id: 'all', label: 'Todos', count: scoped.length },
+            {
+              id: 'Proveedor',
+              label: 'Proveedor',
+              count: scoped.filter((c) => c.type === 'Proveedor').length,
+            },
+            {
+              id: 'Cliente',
+              label: 'Cliente',
+              count: scoped.filter((c) => c.type === 'Cliente').length,
+            },
+          ]}
         />
-        <KpiCard
-          label='Casos abiertos (Proveedor + Cliente)'
-          value={String(buckets.porReclamar.openClaimsCount)}
-          sub='Pendientes de resolución'
-        />
-        <KpiCard
-          label='Monto total reclamado abierto'
-          value={cop(buckets.porReclamar.openClaimsCOP ?? buckets.porReclamar.openClaimsUSD)}
-          sub='Incluye roturas y faltantes'
-        />
+
+        <section className='overflow-hidden rounded-xl border bg-card'>
+          {visible.length === 0 ? (
+            <EmptyState
+              title='Sin reclamos'
+              text={
+                tab === 'all'
+                  ? 'No hay reclamos ni devoluciones en las bodegas seleccionadas. Se crean solos al recibir mercadería rota o al registrar una devolución de cliente.'
+                  : `No hay reclamos de ${tab === 'Proveedor' ? 'proveedor' : 'cliente'} en las bodegas seleccionadas.`
+              }
+              icon={FileText}
+            />
+          ) : (
+            <ul className='divide-y'>
+              {visible.map((c) => {
+                const unit = skuOf(c.sku)?.unitMeasure ?? 'Unidad'
+                const actionable = canAct && c.status !== 'Resuelto'
+                return (
+                  <li key={c.id}>
+                    <ListRow
+                      onClick={() => setDetailId(c.id)}
+                      trailing={
+                        <>
+                          {actionable && (
+                            <span className='hidden h-10 items-center rounded-md border bg-background px-3 text-sm font-medium sm:inline-flex'>
+                              Gestionar
+                            </span>
+                          )}
+                          <ChevronRight
+                            aria-hidden
+                            className={`size-4 shrink-0 text-muted-foreground ${actionable ? 'sm:hidden' : ''}`}
+                          />
+                        </>
+                      }
+                    >
+                      <div className='flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-4'>
+                        <div className='min-w-0 flex-1'>
+                          <div className='flex flex-wrap items-center gap-x-2 gap-y-0.5'>
+                            <span className='font-medium'>
+                              {c.counterparty}
+                            </span>
+                            <span className='inline-flex items-center gap-1 text-xs text-muted-foreground'>
+                              {c.type === 'Proveedor' ? (
+                                <Truck className='size-3.5' aria-hidden />
+                              ) : (
+                                <User className='size-3.5' aria-hidden />
+                              )}
+                              {c.type}
+                            </span>
+                          </div>
+                          <div className='mt-0.5 text-sm'>
+                            <span className='font-semibold tabular-nums'>
+                              {qtyText(c.qty, unit)}
+                            </span>
+                            <span className='text-muted-foreground'>
+                              {' '}
+                              · {skuOf(c.sku)?.name ?? c.sku}
+                            </span>
+                          </div>
+                          <div className='mt-0.5 truncate text-sm text-muted-foreground'>
+                            {c.reason}
+                          </div>
+                        </div>
+                        <div className='flex items-center justify-between gap-4 sm:justify-end'>
+                          <div className='sm:text-end'>
+                            <div className='font-semibold tabular-nums'>
+                              {cop(c.valueCOP)}
+                            </div>
+                            <div className='text-xs text-muted-foreground'>
+                              {ageText(c.createdAt)}
+                            </div>
+                          </div>
+                          <StatusPill
+                            tone={CLAIM_PILL[c.status]}
+                            className='sm:w-24 sm:justify-center'
+                          >
+                            {c.status}
+                          </StatusPill>
+                        </div>
+                      </div>
+                    </ListRow>
+                  </li>
+                )
+              })}
+            </ul>
+          )}
+        </section>
       </div>
 
-      {/* Pipeline & Lista de Reclamos */}
-      <div className='space-y-3.5'>
-        {list.length === 0 && (
-          <EmptyState text='No hay reclamos ni devoluciones en la bodega seleccionada.' />
-        )}
-        {list.map((c) => {
-          const isSupplier = c.type === 'Proveedor'
-          const isResolved = c.status === 'Resuelto'
+      {/* Detalle y acciones */}
+      <Sheet
+        open={detail !== null}
+        onOpenChange={(o) => !o && setDetailId(null)}
+      >
+        <SheetContent className='w-full gap-0 sm:max-w-md'>
+          {detail && (
+            <ClaimDetail
+              claim={detail}
+              unit={skuOf(detail.sku)?.unitMeasure ?? 'Unidad'}
+              skuName={skuOf(detail.sku)?.name ?? detail.sku}
+              warehouseName={
+                warehouses.find((w) => w.id === detail.warehouse)?.name ??
+                detail.warehouse
+              }
+              unitsInClaim={
+                partidas.find((p) => p.id === detail.partidaId)?.qty.reclamo ??
+                0
+              }
+              canAct={canAct}
+              onAction={(a) => {
+                advanceClaim(detail.id, a)
+                setDetailId(null)
+              }}
+            />
+          )}
+        </SheetContent>
+      </Sheet>
 
-          return (
-            <div
-              key={c.id}
-              className={`rounded-xl border bg-card p-4 shadow-xs transition-all hover:border-primary/40 space-y-3 ${
-                isSupplier
-                  ? 'border-l-4 border-l-blue-500'
-                  : 'border-l-4 border-l-emerald-500'
-              }`}
-            >
-              {/* Header */}
-              <div className='flex flex-wrap items-center justify-between gap-2 border-b pb-2.5'>
-                <div className='flex items-center gap-2'>
-                  <span className='font-mono text-xs font-bold text-foreground'>
-                    {c.id}
-                  </span>
-                  <Badge
-                    variant={isSupplier ? 'default' : 'secondary'}
-                    className='text-[10px] py-0 gap-1'
-                  >
-                    {isSupplier ? (
-                      <>
-                        <Truck className='size-3' /> Reclamo Proveedor
-                      </>
-                    ) : (
-                      <>
-                        <User className='size-3' /> Devolución Cliente
-                      </>
-                    )}
-                  </Badge>
-                  <span className='text-xs font-medium text-primary'>
-                    {c.warehouse} · Partida: {c.partidaId}
-                  </span>
-                </div>
-
-                <div className='flex items-center gap-2'>
-                  <Badge
-                    variant={
-                      isResolved
-                        ? 'secondary'
-                        : c.status === 'Enviado'
-                          ? 'default'
-                          : 'outline'
-                    }
-                    className='text-xs'
-                  >
-                    {c.status}
-                  </Badge>
-                </div>
-              </div>
-
-              {/* Case Details & Flow */}
-              <div className='grid grid-cols-1 sm:grid-cols-12 gap-3 items-center'>
-                <div className='sm:col-span-7 space-y-1'>
-                  <div className='text-xs font-semibold text-foreground'>
-                    {c.counterparty} · Doc/Guía: {c.docRef}
-                  </div>
-                  <div className='text-xs text-muted-foreground'>
-                    {c.sku} · Motivo: {c.reason}
-                  </div>
-                  {c.resolution && (
-                    <div className='text-[11px] font-medium text-emerald-600 dark:text-emerald-400'>
-                      ✓ Resolución: {c.resolution}
-                    </div>
-                  )}
-                </div>
-
-                {/* Right: Quantity, Value & Action Buttons */}
-                <div className='sm:col-span-5 flex flex-wrap items-center justify-between sm:justify-end gap-3'>
-                  <div className='text-end'>
-                    <span className='text-sm font-bold tabular-nums text-foreground'>
-                      {nf(c.qty)} uds
-                    </span>
-                    <span className='block text-xs font-semibold tabular-nums text-muted-foreground'>
-                      {cop(c.valueCOP ?? c.valueUSD)}
-                    </span>
-                  </div>
-
-                  {canAct && !isResolved && (
-                    <div className='flex flex-wrap items-center gap-1.5'>
-                      {isSupplier && c.status === 'Abierto' && (
-                        <Button
-                          size='sm'
-                          variant='outline'
-                          className='h-7 text-xs px-2.5'
-                          onClick={() => advanceClaim(c.id, 'Enviar')}
-                        >
-                          <Send className='mr-1 size-3' /> Notificar
-                        </Button>
-                      )}
-                      {isSupplier && (
-                        <>
-                          <Button
-                            size='sm'
-                            className='h-7 text-xs px-2.5 bg-blue-600 hover:bg-blue-700 text-white'
-                            onClick={() =>
-                              advanceClaim(c.id, 'Nota de crédito / Descarte')
-                            }
-                          >
-                            Nota de Crédito
-                          </Button>
-                          <Button
-                            size='sm'
-                            variant='ghost'
-                            className='h-7 text-xs px-2'
-                            onClick={() =>
-                              advanceClaim(c.id, 'Reintegrar a disponible')
-                            }
-                          >
-                            Reintegrar
-                          </Button>
-                        </>
-                      )}
-                      {!isSupplier && (
-                        <>
-                          <Button
-                            size='sm'
-                            className='h-7 text-xs px-2.5 bg-emerald-600 hover:bg-emerald-700 text-white'
-                            onClick={() =>
-                              advanceClaim(c.id, 'Reintegrar a disponible')
-                            }
-                          >
-                            Apto (Reintegrar)
-                          </Button>
-                          <Button
-                            size='sm'
-                            variant='destructive'
-                            className='h-7 text-xs px-2.5'
-                            onClick={() => advanceClaim(c.id, 'Pasar a dañado')}
-                          >
-                            Dañado
-                          </Button>
-                        </>
-                      )}
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-          )
-        })}
-      </div>
-
-      {/* Modal Devolución de Cliente */}
-      <Dialog open={retOpen} onOpenChange={setRetOpen}>
-        <DialogContent className='sm:max-w-md'>
-          <DialogHeader>
-            <DialogTitle>Registrar devolución de cliente</DialogTitle>
-          </DialogHeader>
-          <form
-            className='space-y-3 pt-2 text-xs'
-            onSubmit={(e) => {
-              e.preventDefault()
-              const q = Number(qty)
-              if (!customer.trim() || !partidaId || !Number.isInteger(q) || q <= 0)
-                return
-              openCustomerReturn({
-                customer: customer.trim(),
-                docRef: docRef.trim(),
-                partidaId,
-                qty: q,
-                reason: reason.trim(),
-              })
-              setCustomer('')
-              setRetOpen(false)
-            }}
-          >
-            <div className='space-y-1'>
-              <label className='font-medium'>Cliente / Comprador</label>
-              <Input
-                required
-                className='h-8 text-xs'
-                value={customer}
-                onChange={(e) => setCustomer(e.target.value)}
-                placeholder='Nombre del cliente u obra'
-              />
-            </div>
-            <div className='grid grid-cols-2 gap-3'>
-              <div className='space-y-1'>
-                <label className='font-medium'>Guía / Boleta original</label>
-                <Input
-                  required
-                  className='h-8 text-xs font-mono'
-                  value={docRef}
-                  onChange={(e) => setDocRef(e.target.value)}
-                />
-              </div>
-              <div className='space-y-1'>
-                <label className='font-medium'>Cantidad devuelta</label>
-                <Input
-                  type='number'
-                  min={1}
-                  required
-                  className='h-8 text-xs font-bold'
-                  value={qty}
-                  onChange={(e) => setQty(e.target.value)}
-                />
-              </div>
-            </div>
-            <div className='space-y-1'>
-              <label className='font-medium'>Partida asociada</label>
-              <select
-                required
-                className='h-8 w-full rounded-md border bg-background px-2 text-xs'
-                value={partidaId}
-                onChange={(e) => setPartidaId(e.target.value)}
-              >
-                {scopedPartidas.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.id} · {p.sku} ({p.warehouse})
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className='space-y-1'>
-              <label className='font-medium'>Motivo de devolución</label>
-              <Input
-                required
-                className='h-8 text-xs'
-                value={reason}
-                onChange={(e) => setReason(e.target.value)}
-              />
-            </div>
-            <div className='flex justify-end gap-2 pt-2'>
-              <Button
-                type='button'
-                variant='outline'
-                size='sm'
-                onClick={() => setRetOpen(false)}
-              >
-                Cancelar
-              </Button>
-              <Button type='submit' size='sm'>
-                Ingresar en estado Reclamo
-              </Button>
-            </div>
-          </form>
-        </DialogContent>
-      </Dialog>
+      {returnOpen && (
+        <CustomerReturnDialog onClose={() => setReturnOpen(false)} />
+      )}
     </div>
   )
 }
 
-// 6.2 Rezagados y vencimientos
+function ClaimDetail({
+  claim: c,
+  unit,
+  skuName,
+  warehouseName,
+  unitsInClaim,
+  canAct,
+  onAction,
+}: {
+  claim: ClaimCase
+  unit: string
+  skuName: string
+  warehouseName: string
+  unitsInClaim: number
+  canAct: boolean
+  onAction: (a: ClaimAction) => void
+}) {
+  const isSupplier = c.type === 'Proveedor'
+  const unresolved = c.status !== 'Resuelto'
+
+  return (
+    <>
+      <SheetHeader className='pe-12'>
+        <SheetTitle className='text-lg'>{c.counterparty}</SheetTitle>
+        <SheetDescription asChild>
+          <div className='flex flex-wrap items-center gap-2'>
+            <StatusPill tone={CLAIM_PILL[c.status]}>{c.status}</StatusPill>
+            <span>
+              {isSupplier ? 'Reclamo a proveedor' : 'Devolución de cliente'} ·{' '}
+              {c.id}
+            </span>
+          </div>
+        </SheetDescription>
+      </SheetHeader>
+
+      <div className='min-h-0 flex-1 space-y-5 overflow-y-auto px-4 pb-6'>
+        <dl className='divide-y'>
+          <DefRow label={isSupplier ? 'Orden de compra' : 'Factura o remisión'}>
+            <span className='font-mono'>{c.docRef}</span>
+          </DefRow>
+          <DefRow label='Producto'>
+            {skuName}
+            <span className='block font-mono text-xs font-normal text-muted-foreground'>
+              {c.sku} · partida {c.partidaId}
+            </span>
+          </DefRow>
+          <DefRow label='Cantidad'>{qtyText(c.qty, unit)}</DefRow>
+          <DefRow label='Valor'>{cop(c.valueCOP)}</DefRow>
+          <DefRow label='Bodega'>{warehouseName}</DefRow>
+          <DefRow label='Registrado'>
+            {shortDate(c.createdAt)} · {ageText(c.createdAt)}
+          </DefRow>
+        </dl>
+
+        <div>
+          <h3 className='font-semibold'>Motivo</h3>
+          <p className='mt-1 text-sm text-muted-foreground'>{c.reason}</p>
+        </div>
+
+        {!unresolved && (
+          <Callout
+            tone='success'
+            icon={CheckCircle2}
+            title={c.resolution ?? 'Caso resuelto'}
+          />
+        )}
+
+        {unresolved && canAct && (
+          <div className='space-y-3'>
+            <h3 className='font-semibold'>¿Qué quieres hacer?</h3>
+            {isSupplier ? (
+              <>
+                {c.status === 'Abierto' && (
+                  <ActionOption
+                    icon={Send}
+                    title='Marcar como enviado'
+                    description='Avisa que el reclamo ya se mandó al proveedor. Las unidades siguen apartadas.'
+                    onClick={() => onAction('Enviar')}
+                  />
+                )}
+                <ActionOption
+                  icon={FileText}
+                  title='Registrar nota de crédito'
+                  description='El proveedor aceptó: las unidades salen del inventario y el reclamo se cierra.'
+                  onClick={() => onAction('Nota de crédito / Descarte')}
+                />
+                <ActionOption
+                  icon={Undo2}
+                  title='Reintegrar a disponible'
+                  description='Las unidades están bien: vuelven a la venta y el reclamo se cierra.'
+                  onClick={() => onAction('Reintegrar a disponible')}
+                />
+              </>
+            ) : (
+              <>
+                <ActionOption
+                  icon={Undo2}
+                  title='Reintegrar a disponible'
+                  description='La mercadería está en buen estado: vuelve a la venta y se cierra la devolución.'
+                  onClick={() => onAction('Reintegrar a disponible')}
+                />
+                {unitsInClaim > 0 && (
+                  <ActionOption
+                    icon={Trash2}
+                    danger
+                    title='Pasar a dañado'
+                    description='La mercadería llegó rota: pasa a dañado para darla de baja y se cierra la devolución.'
+                    onClick={() => onAction('Pasar a dañado')}
+                  />
+                )}
+              </>
+            )}
+          </div>
+        )}
+      </div>
+    </>
+  )
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Registrar devolución de cliente                                            */
+/* -------------------------------------------------------------------------- */
+
+function CustomerReturnDialog({ onClose }: { onClose: () => void }) {
+  const { partidas, skus, warehouses, matchesScope, openCustomerReturn } =
+    useWms()
+
+  const [customer, setCustomer] = useState('')
+  const [docRef, setDocRef] = useState('')
+  const [partidaId, setPartidaId] = useState('')
+  const [qty, setQty] = useState('')
+  const [reason, setReason] = useState('')
+  const [attempted, setAttempted] = useState(false)
+
+  const options = partidas.filter((p) => matchesScope(p.warehouse))
+  const partida = options.find((p) => p.id === partidaId)
+  const unit = skus.find((s) => s.sku === partida?.sku)?.unitMeasure ?? 'Unidad'
+  const qtyN = Number(qty)
+
+  const errors = {
+    customer: customer.trim() ? '' : 'Escribe el nombre del cliente o la obra.',
+    docRef: docRef.trim() ? '' : 'Escribe el número de la factura o remisión.',
+    partida: partida ? '' : 'Elige el producto que devuelve.',
+    qty:
+      Number.isInteger(qtyN) && qtyN > 0
+        ? ''
+        : 'Escribe una cantidad entera mayor que cero.',
+    reason: reason.trim() ? '' : 'Cuéntanos brevemente por qué lo devuelve.',
+  }
+  const showErr = (k: keyof typeof errors) => (attempted ? errors[k] : '')
+
+  const submit = (e: React.FormEvent) => {
+    e.preventDefault()
+    setAttempted(true)
+    if (Object.values(errors).some(Boolean) || !partida) return
+    openCustomerReturn({
+      customer: customer.trim(),
+      docRef: docRef.trim().toUpperCase(),
+      partidaId: partida.id,
+      qty: qtyN,
+      reason: reason.trim(),
+    })
+    onClose()
+  }
+
+  return (
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className='max-h-[calc(100dvh-2rem)] overflow-y-auto sm:max-w-md'>
+        <DialogHeader>
+          <DialogTitle>Registrar devolución de cliente</DialogTitle>
+          <DialogDescription>
+            La mercadería queda apartada en «Reclamo» hasta que decidas qué
+            hacer con ella.
+          </DialogDescription>
+        </DialogHeader>
+        <form onSubmit={submit} noValidate className='space-y-4'>
+          <Field label='Cliente' required error={showErr('customer')}>
+            <Input
+              value={customer}
+              onChange={(e) => setCustomer(e.target.value)}
+              placeholder='Nombre del cliente u obra'
+              className='h-11'
+            />
+          </Field>
+          <Field
+            label='N.º de factura o remisión'
+            required
+            error={showErr('docRef')}
+          >
+            <Input
+              value={docRef}
+              onChange={(e) => setDocRef(e.target.value)}
+              placeholder='Ej. FV-10452'
+              className='h-11 font-mono'
+            />
+          </Field>
+          <Field label='Producto' required error={showErr('partida')}>
+            <select
+              value={partidaId}
+              onChange={(e) => setPartidaId(e.target.value)}
+              className={`${SELECT_CLASS} h-11`}
+            >
+              <option value=''>Elige un producto…</option>
+              {options.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {skus.find((s) => s.sku === p.sku)?.name ?? p.sku} ·{' '}
+                  {warehouses.find((w) => w.id === p.warehouse)?.name ??
+                    p.warehouse}{' '}
+                  · {p.id}
+                </option>
+              ))}
+            </select>
+          </Field>
+          <Field
+            label={`Cantidad devuelta${partida ? ` (${unit.toLowerCase()})` : ''}`}
+            required
+            error={showErr('qty')}
+          >
+            <Input
+              inputMode='numeric'
+              placeholder='0'
+              value={qty}
+              onChange={(e) => setQty(e.target.value.replace(/\D/g, ''))}
+              className='h-11 tabular-nums'
+            />
+          </Field>
+          <Field label='Motivo' required error={showErr('reason')}>
+            <Input
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              placeholder='Ej. Sobrante de obra en cajas selladas'
+              className='h-11'
+            />
+          </Field>
+          <DialogFooter className='pt-2'>
+            <Button
+              type='button'
+              variant='outline'
+              className='h-11 sm:h-10'
+              onClick={onClose}
+            >
+              Cancelar
+            </Button>
+            <Button type='submit' className='h-11 sm:h-10'>
+              Registrar devolución
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+/* -------------------------------------------------------------------------- */
+/*  6.2 Rezagados y vencimientos                                               */
+/* -------------------------------------------------------------------------- */
+
+const FRESH_DAYS = 30
+
 export function StaleAndExpiryScreen() {
-  const { skus, partidas, buckets, matchesScope } = useWms()
-  const [selectedAgingBracket, setSelectedAgingBracket] = useState<
-    '0-30' | '31-60' | '61-90' | '90+' | null
-  >(null)
+  const { skus, partidas, warehouses, matchesScope } = useWms()
+  const [tab, setTab] = useState<'expiry' | 'stale'>('expiry')
 
-  const skuMap = new Map(skus.map((s) => [s.sku, s]))
+  const skuOf = (code: string) => skus.find((s) => s.sku === code)
+  const whName = (id: string) => warehouses.find((w) => w.id === id)?.name ?? id
 
-  const scopedAvail = partidas.filter(
+  const available = partidas.filter(
     (p) => matchesScope(p.warehouse) && p.qty.disponible > 0
   )
+  const idleDays = (p: (typeof available)[number]) =>
+    daysBetween(p.lastOutAt, TODAY_STR)
+  const capital = (p: (typeof available)[number]) =>
+    p.qty.disponible * (skuOf(p.sku)?.unitCost ?? 0)
 
-  // Compute 4 Aging Brackets dynamically
-  const agingData: Record<
-    '0-30' | '31-60' | '61-90' | '90+',
-    { units: number; valueCOP: number; valueUSD: number; partidas: number }
-  > = {
-    '0-30': { units: 0, valueCOP: 0, valueUSD: 0, partidas: 0 },
-    '31-60': { units: 0, valueCOP: 0, valueUSD: 0, partidas: 0 },
-    '61-90': { units: 0, valueCOP: 0, valueUSD: 0, partidas: 0 },
-    '90+': { units: 0, valueCOP: 0, valueUSD: 0, partidas: 0 },
-  }
+  const expiring = available
+    .filter(
+      (p) => p.expiry && daysBetween(TODAY_STR, p.expiry) <= EXPIRY_WARN_DAYS
+    )
+    .sort((a, b) => (a.expiry ?? '').localeCompare(b.expiry ?? ''))
+  const stale = available
+    .filter((p) => idleDays(p) >= STALE_DAYS)
+    .sort((a, b) => idleDays(b) - idleDays(a))
 
-  for (const p of scopedAvail) {
-    const s = skuMap.get(p.sku)
-    const cost = s?.unitCost ?? 0
-    const idle = daysBetween(p.lastOutAt, TODAY_STR)
-    const u = p.qty.disponible
-    const val = u * cost
+  const staleCapital = stale.reduce((sum, p) => sum + capital(p), 0)
 
-    if (idle <= 30) {
-      agingData['0-30'].units += u
-      agingData['0-30'].valueCOP += val
-      agingData['0-30'].valueUSD += val
-      agingData['0-30'].partidas += 1
-    } else if (idle <= 60) {
-      agingData['31-60'].units += u
-      agingData['31-60'].valueCOP += val
-      agingData['31-60'].valueUSD += val
-      agingData['31-60'].partidas += 1
-    } else if (idle <= 90) {
-      agingData['61-90'].units += u
-      agingData['61-90'].valueCOP += val
-      agingData['61-90'].valueUSD += val
-      agingData['61-90'].partidas += 1
-    } else {
-      agingData['90+'].units += u
-      agingData['90+'].valueCOP += val
-      agingData['90+'].valueUSD += val
-      agingData['90+'].partidas += 1
-    }
-  }
-
-  const agingBuckets: AgingBucketData[] = [
+  const buckets: AgingBucketData[] = [
     {
-      key: '0-30',
-      label: 'Rotación Fresca',
-      rangeText: '0 - 30 días',
-      units: agingData['0-30'].units,
-      valueCOP: agingData['0-30'].valueCOP,
-      valueUSD: agingData['0-30'].valueUSD,
-      partidasCount: agingData['0-30'].partidas,
-      color: '#10b981', // emerald-500
-      bgLight: 'bg-emerald-50 dark:bg-emerald-950/20',
-      borderLight: 'border-emerald-200 dark:border-emerald-800',
-      statusText: 'Óptimo',
+      key: 'fresh',
+      label: `Menos de ${FRESH_DAYS} d`,
+      partidas: available.filter((p) => idleDays(p) < FRESH_DAYS).length,
+      tone: 'success',
     },
     {
-      key: '31-60',
-      label: 'Rotación Regular',
-      rangeText: '31 - 60 días',
-      units: agingData['31-60'].units,
-      valueCOP: agingData['31-60'].valueCOP,
-      valueUSD: agingData['31-60'].valueUSD,
-      partidasCount: agingData['31-60'].partidas,
-      color: '#3b82f6', // blue-500
-      bgLight: 'bg-blue-50 dark:bg-blue-950/20',
-      borderLight: 'border-blue-200 dark:border-blue-800',
-      statusText: 'Normal',
+      key: 'ok',
+      label: `${FRESH_DAYS}–${STALE_DAYS - 1} d`,
+      partidas: available.filter(
+        (p) => idleDays(p) >= FRESH_DAYS && idleDays(p) < STALE_DAYS
+      ).length,
+      tone: 'neutral',
     },
     {
-      key: '61-90',
-      label: 'Rezagado Atención',
-      rangeText: '61 - 90 días',
-      units: agingData['61-90'].units,
-      valueCOP: agingData['61-90'].valueCOP,
-      valueUSD: agingData['61-90'].valueUSD,
-      partidasCount: agingData['61-90'].partidas,
-      color: '#f59e0b', // amber-500
-      bgLight: 'bg-amber-50 dark:bg-amber-950/20',
-      borderLight: 'border-amber-200 dark:border-amber-800',
-      statusText: 'Revisar',
+      key: 'stale',
+      label: `${STALE_DAYS}–${CRITICAL_STALE_DAYS - 1} d`,
+      partidas: available.filter(
+        (p) => idleDays(p) >= STALE_DAYS && idleDays(p) < CRITICAL_STALE_DAYS
+      ).length,
+      tone: 'warning',
     },
     {
-      key: '90+',
-      label: 'Rezagado Crítico',
-      rangeText: '> 90 días',
-      units: agingData['90+'].units,
-      valueCOP: agingData['90+'].valueCOP,
-      valueUSD: agingData['90+'].valueUSD,
-      partidasCount: agingData['90+'].partidas,
-      color: '#ef4444', // red-500
-      bgLight: 'bg-rose-50 dark:bg-rose-950/20',
-      borderLight: 'border-rose-200 dark:border-rose-800',
-      statusText: 'Liquidación',
+      key: 'critical',
+      label: `${CRITICAL_STALE_DAYS} d o más`,
+      partidas: available.filter((p) => idleDays(p) >= CRITICAL_STALE_DAYS)
+        .length,
+      tone: 'danger',
     },
   ]
 
-  const totalAvailUnits = scopedAvail.reduce((s, p) => s + p.qty.disponible, 0)
-  const totalAvailCOP = scopedAvail.reduce(
-    (s, p) => s + p.qty.disponible * (skuMap.get(p.sku)?.unitCost ?? 0),
-    0
-  )
-
-  const expiringList = scopedAvail
-    .filter((p) => p.expiry && daysBetween(TODAY_STR, p.expiry) <= EXPIRY_WARN_DAYS)
-    .sort((a, b) => (a.expiry ?? '').localeCompare(b.expiry ?? ''))
-
-  const filteredStaleList = scopedAvail
-    .filter((p) => {
-      const idle = daysBetween(p.lastOutAt, TODAY_STR)
-      if (selectedAgingBracket === '0-30') return idle <= 30
-      if (selectedAgingBracket === '31-60') return idle > 30 && idle <= 60
-      if (selectedAgingBracket === '61-90') return idle > 60 && idle <= 90
-      if (selectedAgingBracket === '90+') return idle > 90
-      return idle >= STALE_DAYS
-    })
-    .sort(
-      (a, b) =>
-        daysBetween(b.lastOutAt, TODAY_STR) -
-        daysBetween(a.lastOutAt, TODAY_STR)
-    )
+  const rows = tab === 'expiry' ? expiring : stale
 
   return (
     <div className='space-y-6'>
-      <PageHeader
-        title='Mercadería rezagada y próxima a vencer'
-        subtitle='Análisis de aging buckets para acelerar la rotación y proteger el capital inmovilizado.'
+      <PageHeader title='Rezagados y vencimientos' />
+
+      <StatStrip
+        items={[
+          {
+            label: 'Por vencer',
+            value: nf(expiring.length),
+            tone: expiring.length > 0 ? 'warning' : 'neutral',
+          },
+          {
+            label: 'Rezagados',
+            value: nf(stale.length),
+            tone: stale.length > 0 ? 'warning' : 'neutral',
+          },
+          {
+            label: 'Capital inmovilizado',
+            value: cop(staleCapital),
+            hint: 'Rezagados, al costo',
+          },
+        ]}
       />
 
-      {/* Gráfico Visual de Aging Buckets interactivo */}
-      <AgingChart
-        buckets={agingBuckets}
-        totalUnits={totalAvailUnits}
-        totalCOP={totalAvailCOP}
-        selectedKey={selectedAgingBracket}
-        onSelectBucket={setSelectedAgingBracket}
-      />
+      <AgingChart buckets={buckets} />
 
-      {/* KPI Cards */}
-      <div className='grid grid-cols-2 gap-3 lg:grid-cols-4'>
-        <KpiCard
-          label='Unidades en riesgo (sin duplicar)'
-          value={`${nf(buckets.rezagadaPorVencer.units)} uds`}
-          sub={cop(buckets.rezagadaPorVencer.valueCOP ?? buckets.rezagadaPorVencer.valueUSD)}
-          tone={
-            buckets.rezagadaPorVencer.units > 0 ? 'text-destructive' : undefined
-          }
+      <div className='space-y-3'>
+        <FilterTabs
+          value={tab}
+          onChange={setTab}
+          options={[
+            {
+              id: 'expiry',
+              label: `Por vencer ≤ ${EXPIRY_WARN_DAYS} d`,
+              count: expiring.length,
+            },
+            {
+              id: 'stale',
+              label: `Rezagados ≥ ${STALE_DAYS} d`,
+              count: stale.length,
+            },
+          ]}
         />
-        <KpiCard
-          label={`Por vencer (≤ ${EXPIRY_WARN_DAYS} días)`}
-          value={`${buckets.rezagadaPorVencer.expiringSoonCount} partidas`}
-          sub='Priorizar en despachos FEFO'
-        />
-        <KpiCard
-          label={`Rezagadas (≥ ${STALE_DAYS} días)`}
-          value={`${buckets.rezagadaPorVencer.stalePartidasCount} partidas`}
-          sub='Capital inmovilizado'
-        />
-        <KpiCard
-          label={`Críticas (≥ ${CRITICAL_STALE_DAYS} días)`}
-          value={`${buckets.rezagadaPorVencer.criticalStaleCount} partidas`}
-          sub='Candidatas a liquidación'
-        />
-      </div>
 
-      {/* Sección 1: Próximos a vencer FEFO */}
-      <div className='space-y-2.5 rounded-xl border bg-card p-4 shadow-xs'>
-        <div className='flex items-center justify-between border-b pb-2.5'>
-          <div className='flex items-center gap-2'>
-            <Calendar className='size-4 text-rose-500' />
-            <h3 className='text-xs font-semibold uppercase tracking-wider text-foreground'>
-              Cronograma de Vencimientos FEFO (≤ {EXPIRY_WARN_DAYS} días)
-            </h3>
-          </div>
-          <span className='text-[11px] text-muted-foreground'>
-            {expiringList.length} partidas en riesgo de caducidad
-          </span>
-        </div>
-
-        <div className='overflow-x-auto'>
-          <table className='w-full text-xs'>
-            <thead className='border-b bg-muted/40 text-left text-muted-foreground'>
-              <tr>
-                <th className='px-3.5 py-2.5 font-medium'>Partida · Bodega</th>
-                <th className='px-3.5 py-2.5 font-medium'>Producto</th>
-                <th className='px-3.5 py-2.5 font-medium'>Vencimiento</th>
-                <th className='px-3.5 py-2.5 font-medium'>Urgencia</th>
-                <th className='px-3.5 py-2.5 font-medium'>Disponible</th>
-                <th className='px-3.5 py-2.5 text-right font-medium'>Capital Expuesto</th>
-              </tr>
-            </thead>
-            <tbody className='divide-y'>
-              {expiringList.map((p) => {
-                const s = skuMap.get(p.sku)
-                const daysLeft = daysBetween(TODAY_STR, p.expiry!)
+        <section className='overflow-hidden rounded-xl border bg-card'>
+          {rows.length === 0 ? (
+            <EmptyState
+              icon={tab === 'expiry' ? AlertTriangle : CheckCircle2}
+              title={tab === 'expiry' ? 'Nada por vencer' : 'Nada rezagado'}
+              text={
+                tab === 'expiry'
+                  ? `No hay partidas que venzan en los próximos ${EXPIRY_WARN_DAYS} días.`
+                  : `No hay partidas con ${STALE_DAYS} días o más sin salida. Todo está rotando.`
+              }
+            />
+          ) : (
+            <ul className='divide-y'>
+              {rows.map((p) => {
+                const s = skuOf(p.sku)
+                let pillTone: Tone
+                let pillText: string
+                let detail: string
+                if (tab === 'expiry' && p.expiry) {
+                  const left = daysBetween(TODAY_STR, p.expiry)
+                  pillTone = left <= 7 ? 'danger' : 'warning'
+                  pillText =
+                    left < 0
+                      ? `Vencida hace ${-left} d`
+                      : left === 0
+                        ? 'Vence hoy'
+                        : `Vence en ${left} d`
+                  detail = `Vence el ${shortDate(p.expiry)}`
+                } else {
+                  const idle = idleDays(p)
+                  const critical = idle >= CRITICAL_STALE_DAYS
+                  pillTone = critical ? 'danger' : 'warning'
+                  pillText = critical
+                    ? `${idle} d sin salida · Crítico`
+                    : `${idle} d sin salida`
+                  detail = `Última salida ${shortDate(p.lastOutAt)}`
+                }
                 return (
-                  <tr key={p.id} className='hover:bg-muted/20'>
-                    <td className='px-3.5 py-2.5 font-mono font-bold text-foreground'>
-                      {p.id} · <span className='font-normal text-muted-foreground'>{p.warehouse}</span>
-                    </td>
-                    <td className='px-3.5 py-2.5'>
-                      <div className='font-semibold text-foreground'>{p.sku}</div>
-                      <div className='text-muted-foreground truncate max-w-xs text-[11px]'>{s?.name}</div>
-                    </td>
-                    <td className='px-3.5 py-2.5 font-medium text-foreground'>{p.expiry}</td>
-                    <td className='px-3.5 py-2.5'>
-                      <Badge
-                        variant='destructive'
-                        className='text-[10px] py-0 font-bold'
-                      >
-                        {daysLeft} días restantes
-                      </Badge>
-                    </td>
-                    <td className='px-3.5 py-2.5 font-bold tabular-nums text-foreground'>
-                      {nf(p.qty.disponible)} {s?.unitMeasure.toLowerCase()}s
-                    </td>
-                    <td className='px-3.5 py-2.5 text-right font-bold tabular-nums text-foreground'>
-                      {cop(p.qty.disponible * (s?.unitCost ?? 0))}
-                    </td>
-                  </tr>
+                  <li key={p.id}>
+                    <ListRow>
+                      <div className='flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-4'>
+                        <div className='min-w-0 flex-1'>
+                          <div className='line-clamp-2 font-medium'>
+                            {s?.name ?? p.sku}
+                          </div>
+                          <div className='mt-0.5 text-sm text-muted-foreground'>
+                            <span className='font-semibold text-foreground tabular-nums'>
+                              {qtyText(
+                                p.qty.disponible,
+                                s?.unitMeasure ?? 'Unidad'
+                              )}
+                            </span>{' '}
+                            · {whName(p.warehouse)}
+                          </div>
+                          <div className='mt-0.5 text-xs text-muted-foreground'>
+                            {detail} · Partida {p.id}
+                          </div>
+                        </div>
+                        <div className='flex items-center justify-between gap-4 sm:justify-end'>
+                          <div className='text-sm text-muted-foreground tabular-nums sm:text-end'>
+                            {cop(capital(p))}
+                          </div>
+                          <StatusPill tone={pillTone}>{pillText}</StatusPill>
+                        </div>
+                      </div>
+                    </ListRow>
+                  </li>
                 )
               })}
-            </tbody>
-          </table>
-          {expiringList.length === 0 && (
-            <EmptyState text='No hay partidas próximas a vencer en los próximos 30 días.' />
+            </ul>
           )}
-        </div>
-      </div>
-
-      {/* Sección 2: Partidas Rezagadas (Filtradas por Aging Bucket o general) */}
-      <div className='space-y-2.5 rounded-xl border bg-card p-4 shadow-xs'>
-        <div className='flex flex-wrap items-center justify-between gap-2 border-b pb-2.5'>
-          <div className='flex items-center gap-2'>
-            <Clock className='size-4 text-amber-500' />
-            <h3 className='text-xs font-semibold uppercase tracking-wider text-foreground'>
-              {selectedAgingBracket
-                ? `Partidas del tramo: ${selectedAgingBracket} días (${filteredStaleList.length})`
-                : `Partidas Rezagadas sin Salida (≥ ${STALE_DAYS} días)`}
-            </h3>
-          </div>
-          {selectedAgingBracket && (
-            <Button
-              variant='ghost'
-              size='sm'
-              className='h-6 text-xs text-primary'
-              onClick={() => setSelectedAgingBracket(null)}
-            >
-              Mostrar todas (≥ {STALE_DAYS}d)
-            </Button>
-          )}
-        </div>
-
-        <div className='overflow-x-auto'>
-          <table className='w-full text-xs'>
-            <thead className='border-b bg-muted/40 text-left text-muted-foreground'>
-              <tr>
-                <th className='px-3.5 py-2.5 font-medium'>Partida · Bodega</th>
-                <th className='px-3.5 py-2.5 font-medium'>Producto</th>
-                <th className='px-3.5 py-2.5 font-medium'>Última salida</th>
-                <th className='px-3.5 py-2.5 font-medium'>Inactividad</th>
-                <th className='px-3.5 py-2.5 font-medium'>Disponible</th>
-                <th className='px-3.5 py-2.5 text-right font-medium'>Capital Inmovilizado</th>
-              </tr>
-            </thead>
-            <tbody className='divide-y'>
-              {filteredStaleList.map((p) => {
-                const s = skuMap.get(p.sku)
-                const daysIdle = daysBetween(p.lastOutAt, TODAY_STR)
-                const isCrit = daysIdle >= CRITICAL_STALE_DAYS
-                return (
-                  <tr key={p.id} className='hover:bg-muted/20'>
-                    <td className='px-3.5 py-2.5 font-mono font-bold text-foreground'>
-                      {p.id} · <span className='font-normal text-muted-foreground'>{p.warehouse}</span>
-                    </td>
-                    <td className='px-3.5 py-2.5'>
-                      <div className='font-semibold text-foreground'>{p.sku}</div>
-                      <div className='text-muted-foreground truncate max-w-xs text-[11px]'>{s?.name}</div>
-                    </td>
-                    <td className='px-3.5 py-2.5 text-muted-foreground'>{p.lastOutAt}</td>
-                    <td className='px-3.5 py-2.5'>
-                      <Badge
-                        variant={isCrit ? 'destructive' : 'outline'}
-                        className={`text-[10px] py-0 ${
-                          !isCrit && daysIdle >= STALE_DAYS
-                            ? 'border-amber-500/50 text-amber-600'
-                            : ''
-                        }`}
-                      >
-                        {daysIdle} días {isCrit ? '(Crítico ≥ 90d)' : ''}
-                      </Badge>
-                    </td>
-                    <td className='px-3.5 py-2.5 font-bold tabular-nums text-foreground'>
-                      {nf(p.qty.disponible)} {s?.unitMeasure.toLowerCase()}s
-                    </td>
-                    <td className='px-3.5 py-2.5 text-right font-bold tabular-nums text-foreground'>
-                      {cop(p.qty.disponible * (s?.unitCost ?? 0))}
-                    </td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
-          {filteredStaleList.length === 0 && (
-            <EmptyState text='No hay partidas en el tramo de antigüedad seleccionado.' />
-          )}
-        </div>
+        </section>
       </div>
     </div>
   )
