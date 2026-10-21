@@ -468,7 +468,7 @@ function NewOrderFlow({
                             type='button'
                             variant='outline'
                             size='icon'
-                            className='size-11 sm:size-10'
+                            className='size-10'
                             aria-label='Restar uno'
                             disabled={l.qty <= 1}
                             onClick={() =>
@@ -479,7 +479,7 @@ function NewOrderFlow({
                           </Button>
                           <Input
                             inputMode='numeric'
-                            className='h-11 w-16 px-1 text-center tabular-nums sm:h-10'
+                            className='h-10 w-16 px-1 text-center tabular-nums sm:h-10'
                             value={l.qty === 0 ? '' : String(l.qty)}
                             aria-label='Cantidad'
                             aria-invalid={!!c.qtyError}
@@ -495,7 +495,7 @@ function NewOrderFlow({
                             type='button'
                             variant='outline'
                             size='icon'
-                            className='size-11 sm:size-10'
+                            className='size-10'
                             aria-label='Sumar uno'
                             onClick={() => patchLine(l.sku, { qty: l.qty + 1 })}
                           >
@@ -508,7 +508,7 @@ function NewOrderFlow({
                       >
                         <Input
                           inputMode='numeric'
-                          className='h-11 tabular-nums sm:h-10'
+                          className='h-10 tabular-nums sm:h-10'
                           value={l.price > 0 ? nf(l.price) : ''}
                           aria-invalid={!!c.priceError}
                           onChange={(e) =>

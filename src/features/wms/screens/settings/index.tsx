@@ -53,7 +53,7 @@ export function SettingsScreen({
         })}
       </nav>
 
-      <div className='max-w-3xl space-y-6'>
+      <div className='space-y-6'>
         {activeTab === '7-1' && <StructureSettings />}
         {activeTab === '7-2' && <UsersSettings />}
         {activeTab === '7-4' && <BillingSettings />}

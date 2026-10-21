@@ -302,7 +302,7 @@ export function InventoryScreen({
                 setQuery(e.target.value)
                 setLimit(PAGE_SIZE)
               }}
-              className='h-11 ps-9 text-base sm:h-10 sm:text-sm'
+              className='h-10 ps-9'
             />
           </div>
           {scopeWarehouses.length > 1 && (
@@ -310,7 +310,7 @@ export function InventoryScreen({
               aria-label='Filtrar por bodega'
               value={whFilter}
               onChange={(e) => setWhFilter(e.target.value)}
-              className={cn(SELECT_CLASS, 'h-11 sm:h-10')}
+              className={cn(SELECT_CLASS, 'h-10')}
             >
               <option value='ALL'>Todas las bodegas</option>
               {scopeWarehouses.map((w) => (
@@ -324,7 +324,7 @@ export function InventoryScreen({
             aria-label='Filtrar por categoría'
             value={categoryFilter}
             onChange={(e) => setCategoryFilter(e.target.value)}
-            className={cn(SELECT_CLASS, 'h-11 sm:h-10')}
+            className={cn(SELECT_CLASS, 'h-10')}
           >
             <option value='ALL'>Todas las categorías</option>
             {categories.map((c) => (
@@ -524,7 +524,7 @@ export function InventoryScreen({
               <button
                 type='button'
                 onClick={() => setLimit((l) => l + PAGE_SIZE)}
-                className='flex h-12 w-full items-center justify-center border-t text-sm font-medium text-primary transition-colors hover:bg-accent/60'
+                className='flex h-10 w-full items-center justify-center border-t text-sm font-medium text-primary transition-colors hover:bg-accent/60'
               >
                 Cargar más ({list.length - visible.length} restantes)
               </button>
@@ -645,7 +645,7 @@ function DirectStockForm({
             setWh(e.target.value)
             clearError('wh')
           }}
-          className={cn(SELECT_CLASS, 'h-11 sm:h-10')}
+          className={cn(SELECT_CLASS, 'h-10')}
         >
           {warehouses.map((w) => (
             <option key={w.id} value={w.id}>
@@ -662,7 +662,7 @@ function DirectStockForm({
             setSkuCode(e.target.value)
             clearError('expiry')
           }}
-          className={cn(SELECT_CLASS, 'h-11 sm:h-10')}
+          className={cn(SELECT_CLASS, 'h-10')}
         >
           {sortedSkus.map((s) => (
             <option key={s.sku} value={s.sku}>
@@ -693,7 +693,7 @@ function DirectStockForm({
               clearError('qty')
             }}
             aria-invalid={Boolean(errors.qty)}
-            className='h-11 text-base tabular-nums sm:h-10 sm:text-sm'
+            className='h-10 tabular-nums'
           />
         </Field>
 
@@ -708,7 +708,7 @@ function DirectStockForm({
                 clearError('expiry')
               }}
               aria-invalid={Boolean(errors.expiry)}
-              className='h-11 sm:h-10'
+              className='h-10'
             />
           </Field>
         )}
@@ -719,14 +719,14 @@ function DirectStockForm({
           <Input
             value={supplier}
             onChange={(e) => setSupplier(e.target.value)}
-            className='h-11 sm:h-10'
+            className='h-10'
           />
         </Field>
         <Field label='Documento de soporte' hint='Factura, acta o remisión.'>
           <Input
             value={docRef}
             onChange={(e) => setDocRef(e.target.value)}
-            className='h-11 sm:h-10'
+            className='h-10'
           />
         </Field>
       </div>
@@ -749,12 +749,12 @@ function DirectStockForm({
         <Button
           type='button'
           variant='outline'
-          className='h-11 sm:h-9'
+          className='h-10'
           onClick={onDone}
         >
           Cancelar
         </Button>
-        <Button type='submit' className='h-11 sm:h-9'>
+        <Button type='submit' className='h-10'>
           Ingresar al inventario
         </Button>
       </DialogFooter>
@@ -918,7 +918,7 @@ export function MovementsScreen() {
                 setQuery(e.target.value)
                 setLimit(PAGE_SIZE)
               }}
-              className='h-11 ps-9 text-base sm:h-10 sm:text-sm'
+              className='h-10 ps-9'
             />
           </div>
           {scopeWarehouses.length > 1 && (
@@ -926,7 +926,7 @@ export function MovementsScreen() {
               aria-label='Filtrar por bodega'
               value={whFilter}
               onChange={(e) => setWhFilter(e.target.value)}
-              className={cn(SELECT_CLASS, 'h-11 sm:h-10')}
+              className={cn(SELECT_CLASS, 'h-10')}
             >
               <option value='ALL'>Todas las bodegas</option>
               {scopeWarehouses.map((w) => (
@@ -989,7 +989,7 @@ export function MovementsScreen() {
               <button
                 type='button'
                 onClick={() => setLimit((l) => l + PAGE_SIZE)}
-                className='flex h-12 w-full items-center justify-center border-t text-sm font-medium text-primary transition-colors hover:bg-accent/60'
+                className='flex h-10 w-full items-center justify-center border-t text-sm font-medium text-primary transition-colors hover:bg-accent/60'
               >
                 Cargar más ({list.length - visible.length} restantes)
               </button>

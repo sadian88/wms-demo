@@ -12,7 +12,7 @@ import {
   type Tone,
 } from '@/features/wms/components/kit'
 import { INITIAL_WAREHOUSES } from '@/features/wms/data/topology-data'
-import { TODAY_STR } from '@/features/wms/domain/clock'
+import { TODAY_STR, addDays } from '@/features/wms/domain/clock'
 import {
   PICKUP_OVERDUE_DAYS,
   type PickupOrder,
@@ -45,12 +45,6 @@ const STATUSES: ReconStatus[] = [
   'Anulada',
   'Sin facturar',
 ]
-
-function addDays(iso: string, n: number): string {
-  const d = new Date(`${iso}T00:00:00Z`)
-  d.setUTCDate(d.getUTCDate() + n)
-  return d.toISOString().slice(0, 10)
-}
 
 function fromDateOf(period: Period): string | undefined {
   if (period === 'hoy') return TODAY_STR
@@ -145,7 +139,7 @@ export function ReconciliationScreen() {
   }
 
   return (
-    <div className='mx-auto w-full max-w-5xl space-y-5'>
+    <div className='w-full space-y-4'>
       <PageHeader
         title='Conciliación de entregas'
         actions={
@@ -193,13 +187,15 @@ export function ReconciliationScreen() {
         />
       </div>
 
-      <ExceptionsSection
-        exceptions={summary.exceptions}
-        orders={orders}
-        skus={skus}
-      />
+      <div className='grid grid-cols-1 items-start gap-4 xl:grid-cols-2'>
+        <ExceptionsSection
+          exceptions={summary.exceptions}
+          orders={orders}
+          skus={skus}
+        />
 
-      <DailySection days={summary.byDay} />
+        <DailySection days={summary.byDay} />
+      </div>
 
       <InvoicesDetail rows={summary.rows} />
     </div>
@@ -413,7 +409,7 @@ function InvoicesDetail({ rows }: { rows: ReconRow[] }) {
 
   return (
     <details className='group rounded-xl border bg-card'>
-      <summary className='flex min-h-12 cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-base font-semibold sm:px-5 [&::-webkit-details-marker]:hidden'>
+      <summary className='flex min-h-10 cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-base font-semibold sm:px-5 [&::-webkit-details-marker]:hidden'>
         <span>Ver todas las facturas ({rows.length})</span>
         <ChevronRight className='size-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-90' />
       </summary>

@@ -236,333 +236,367 @@ export function ReceivingScreen({
     )
 
   return (
-    <div className='w-full max-w-3xl space-y-5'>
+    <div className='w-full space-y-4'>
       <PageHeader title='Recepción de mercadería' />
 
-      {!isReadOnly && baseline === null && (
-        <Section>
-          <Stepper steps={STEPS} current={step} className='mb-5' />
+      <div
+        className={cn(
+          'grid grid-cols-1 items-start gap-4',
+          !isReadOnly && 'lg:grid-cols-[minmax(0,1fr)_24rem]'
+        )}
+      >
+        <div className='min-w-0 space-y-4'>
+          {!isReadOnly && baseline === null && (
+            <Section>
+              <Stepper steps={STEPS} current={step} className='mb-5' />
 
-          {step === 0 && (
-            <div className='space-y-4'>
-              <h2 className='text-base font-semibold'>Datos del documento</h2>
-              {scoped.length > 1 ? (
-                <Field label='Bodega receptora' required>
-                  <select
-                    className={cn(SELECT_CLASS, 'h-11')}
-                    value={wh}
-                    onChange={(e) => setWhPick(e.target.value)}
+              {step === 0 && (
+                <div className='grid grid-cols-1 gap-4 md:grid-cols-2'>
+                  <h2 className='text-base font-semibold md:col-span-2'>
+                    Datos del documento
+                  </h2>
+                  {scoped.length > 1 ? (
+                    <Field label='Bodega receptora' required>
+                      <select
+                        className={SELECT_CLASS}
+                        value={wh}
+                        onChange={(e) => setWhPick(e.target.value)}
+                      >
+                        <option value=''>Elige la bodega…</option>
+                        {scoped.map((w) => (
+                          <option key={w.id} value={w.id}>
+                            {w.name} ({w.id})
+                          </option>
+                        ))}
+                      </select>
+                    </Field>
+                  ) : (
+                    <div className='text-sm md:col-span-2'>
+                      <span className='text-muted-foreground'>
+                        Bodega receptora:{' '}
+                      </span>
+                      <span className='font-medium'>{whName}</span>
+                    </div>
+                  )}
+
+                  <Field label='Proveedor' required>
+                    <Input
+                      className='h-10'
+                      list='receiving-suppliers'
+                      value={supplier}
+                      onChange={(e) => setSupplier(e.target.value)}
+                      placeholder='Nombre del proveedor'
+                      autoComplete='off'
+                    />
+                    <datalist id='receiving-suppliers'>
+                      {knownSuppliers.map((s) => (
+                        <option key={s} value={s} />
+                      ))}
+                    </datalist>
+                  </Field>
+
+                  <Field
+                    label='N.º de orden de compra o remisión del proveedor'
+                    required
                   >
-                    <option value=''>Elige la bodega…</option>
-                    {scoped.map((w) => (
-                      <option key={w.id} value={w.id}>
-                        {w.name} ({w.id})
-                      </option>
-                    ))}
-                  </select>
-                </Field>
-              ) : (
-                <div className='text-sm'>
-                  <span className='text-muted-foreground'>
-                    Bodega receptora:{' '}
-                  </span>
-                  <span className='font-medium'>{whName}</span>
+                    <Input
+                      className='h-10'
+                      value={docRef}
+                      onChange={(e) => setDocRef(e.target.value)}
+                      placeholder='Ej: OC-2026-0330'
+                      autoComplete='off'
+                    />
+                  </Field>
+
+                  <div className='md:col-span-2'>
+                    <ItemPicker
+                      label='Producto'
+                      required
+                      value={skuCode}
+                      onChange={setSkuCode}
+                      items={skus.map((s) => ({
+                        id: s.sku,
+                        title: s.name,
+                        meta: s.sku,
+                        category: s.category,
+                      }))}
+                    />
+                  </div>
+
+                  {sku?.requiresExpiry && (
+                    <Field
+                      label='Vencimiento'
+                      required
+                      error={
+                        expiryPast
+                          ? 'Esa fecha ya pasó. Revisa el empaque o el documento.'
+                          : undefined
+                      }
+                    >
+                      <Input
+                        type='date'
+                        className='h-10'
+                        value={expiry}
+                        onChange={(e) => setExpiry(e.target.value)}
+                      />
+                    </Field>
+                  )}
+
+                  <div className='space-y-2 border-t pt-4 md:col-span-2'>
+                    {!step1Ok && (
+                      <p className='text-sm text-muted-foreground'>
+                        {missingStep1.length > 0
+                          ? `Falta ${missingStep1.join(', ')}.`
+                          : 'Corrige el vencimiento para continuar.'}
+                      </p>
+                    )}
+                    <Button
+                      className='h-10 w-full sm:w-auto'
+                      disabled={!step1Ok}
+                      onClick={() => setStep(1)}
+                    >
+                      Siguiente: conteo
+                      <ChevronRight className='size-4' />
+                    </Button>
+                  </div>
                 </div>
               )}
 
-              <Field label='Proveedor' required>
-                <Input
-                  className='h-11'
-                  list='receiving-suppliers'
-                  value={supplier}
-                  onChange={(e) => setSupplier(e.target.value)}
-                  placeholder='Nombre del proveedor'
-                  autoComplete='off'
-                />
-                <datalist id='receiving-suppliers'>
-                  {knownSuppliers.map((s) => (
-                    <option key={s} value={s} />
-                  ))}
-                </datalist>
-              </Field>
+              {step === 1 && (
+                <div className='space-y-5'>
+                  <h2 className='text-base font-semibold'>
+                    ¿Cuántas llegaron?
+                  </h2>
 
-              <Field
-                label='N.º de orden de compra o remisión del proveedor'
-                required
-              >
-                <Input
-                  className='h-11'
-                  value={docRef}
-                  onChange={(e) => setDocRef(e.target.value)}
-                  placeholder='Ej: OC-2026-0330'
-                  autoComplete='off'
-                />
-              </Field>
+                  <div className='grid grid-cols-1 gap-4 md:grid-cols-3'>
+                    <QtyStepper
+                      id='rec-expected'
+                      label='Anunciadas en el documento'
+                      value={expected}
+                      onChange={setExpected}
+                      hint={
+                        expected > 0
+                          ? formatQtyWithEquivalent(expected, sku)
+                          : undefined
+                      }
+                    />
+                    <QtyStepper
+                      id='rec-good'
+                      label='Recibidas en buen estado'
+                      tone='success'
+                      value={good}
+                      onChange={setGood}
+                      hint={
+                        good > 0
+                          ? formatQtyWithEquivalent(good, sku)
+                          : undefined
+                      }
+                    />
+                    <QtyStepper
+                      id='rec-damaged'
+                      label='Dañadas'
+                      tone='danger'
+                      value={damaged}
+                      onChange={setDamaged}
+                      hint={
+                        damaged > 0
+                          ? formatQtyWithEquivalent(damaged, sku)
+                          : undefined
+                      }
+                    />
+                  </div>
 
-              <ItemPicker
-                label='Producto'
-                required
-                value={skuCode}
-                onChange={setSkuCode}
-                items={skus.map((s) => ({
-                  id: s.sku,
-                  title: s.name,
-                  meta: s.sku,
-                  category: s.category,
-                }))}
-              />
+                  {extra > 0 && (
+                    <Callout
+                      tone='warning'
+                      title={`Llegaron ${unitQty(extra, sku)} más de las anunciadas`}
+                    >
+                      Se recibirán igual. Si es un error de conteo, corrígelo
+                      antes de continuar.
+                    </Callout>
+                  )}
 
-              {sku?.requiresExpiry && (
-                <Field
-                  label='Vencimiento'
-                  required
-                  error={
-                    expiryPast
-                      ? 'Esa fecha ya pasó. Revisa el empaque o el documento.'
-                      : undefined
-                  }
-                >
-                  <Input
-                    type='date'
-                    className='h-11'
-                    value={expiry}
-                    onChange={(e) => setExpiry(e.target.value)}
+                  <div className='border-t pt-4'>
+                    <LiveSummary
+                      good={good}
+                      damaged={damaged}
+                      missing={missing}
+                      sku={sku}
+                    />
+                  </div>
+
+                  <div className='space-y-2 border-t pt-4'>
+                    {!step2Ok && (
+                      <p className='text-sm text-muted-foreground'>
+                        {step2Reason}
+                      </p>
+                    )}
+                    <div className='flex gap-2'>
+                      <Button
+                        variant='outline'
+                        className='h-10 px-5'
+                        onClick={() => setStep(0)}
+                      >
+                        Atrás
+                      </Button>
+                      <Button
+                        className='h-10 flex-1 sm:flex-none'
+                        disabled={!step2Ok}
+                        onClick={() => setStep(2)}
+                      >
+                        Siguiente: fotos
+                        <ChevronRight className='size-4' />
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {step === 2 && (
+                <div className='space-y-5'>
+                  <div className='space-y-2'>
+                    <h2 className='text-base font-semibold'>
+                      {needsPhoto
+                        ? 'Fotos de las unidades dañadas'
+                        : 'Fotos de la mercancía'}
+                    </h2>
+                    {needsPhoto ? (
+                      <p className='text-sm text-muted-foreground'>
+                        Toma al menos una foto de las {unitQty(damaged, sku)}{' '}
+                        {damagedWord(damaged, sku)}. Sirve como soporte del
+                        reclamo al proveedor.
+                      </p>
+                    ) : (
+                      <p className='text-sm text-muted-foreground'>
+                        Opcional. Puedes dejar una foto del documento o de la
+                        mercancía.
+                      </p>
+                    )}
+                    <PhotoCapture
+                      photos={photos}
+                      onChange={setPhotos}
+                      required={needsPhoto}
+                      label={
+                        needsPhoto ? 'Tomar foto de daños' : 'Agregar foto'
+                      }
+                    />
+                  </div>
+
+                  <dl className='divide-y border-y'>
+                    <DefRow label='Bodega'>{whName}</DefRow>
+                    <DefRow label='Proveedor'>{supplier.trim()}</DefRow>
+                    <DefRow label='Documento'>{docRef.trim()}</DefRow>
+                    <DefRow label='Producto'>{sku?.name}</DefRow>
+                    {sku?.requiresExpiry && expiry && (
+                      <DefRow label='Vencimiento'>{shortDate(expiry)}</DefRow>
+                    )}
+                    <DefRow label='Anunciadas'>
+                      {formatQtyWithEquivalent(expected, sku)}
+                    </DefRow>
+                  </dl>
+
+                  <LiveSummary
+                    good={good}
+                    damaged={damaged}
+                    missing={missing}
+                    sku={sku}
                   />
-                </Field>
-              )}
 
-              <div className='space-y-2 border-t pt-4'>
-                {!step1Ok && (
-                  <p className='text-sm text-muted-foreground'>
-                    {missingStep1.length > 0
-                      ? `Falta ${missingStep1.join(', ')}.`
-                      : 'Corrige el vencimiento para continuar.'}
-                  </p>
-                )}
-                <Button
-                  className='h-12 w-full'
-                  disabled={!step1Ok}
-                  onClick={() => setStep(1)}
-                >
-                  Siguiente: conteo
-                  <ChevronRight className='size-4' />
-                </Button>
-              </div>
-            </div>
+                  <div className='space-y-2 border-t pt-4'>
+                    {!step3Ok && (
+                      <p className={cn('text-sm', TONE.danger.text)}>
+                        Falta al menos una foto de las unidades dañadas para
+                        poder confirmar.
+                      </p>
+                    )}
+                    <div className='flex gap-2'>
+                      <Button
+                        variant='outline'
+                        className='h-10 px-5'
+                        onClick={() => setStep(1)}
+                      >
+                        Atrás
+                      </Button>
+                      <Button
+                        className='h-10 flex-1 sm:flex-none'
+                        disabled={!step3Ok}
+                        onClick={confirm}
+                      >
+                        <PackageCheck className='size-4' />
+                        Confirmar recepción
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </Section>
           )}
 
-          {step === 1 && (
-            <div className='space-y-5'>
-              <h2 className='text-base font-semibold'>¿Cuántas llegaron?</h2>
-
-              <QtyStepper
-                id='rec-expected'
-                label='Anunciadas en el documento'
-                value={expected}
-                onChange={setExpected}
-                hint={
-                  expected > 0
-                    ? formatQtyWithEquivalent(expected, sku)
-                    : undefined
-                }
-              />
-              <QtyStepper
-                id='rec-good'
-                label='Recibidas en buen estado'
-                tone='success'
-                value={good}
-                onChange={setGood}
-                hint={good > 0 ? formatQtyWithEquivalent(good, sku) : undefined}
-              />
-              <QtyStepper
-                id='rec-damaged'
-                label='Dañadas'
-                tone='danger'
-                value={damaged}
-                onChange={setDamaged}
-                hint={
-                  damaged > 0
-                    ? formatQtyWithEquivalent(damaged, sku)
-                    : undefined
-                }
-              />
-
-              {extra > 0 && (
+          {!isReadOnly && baseline !== null && done && (
+            <Section>
+              <div className='space-y-4'>
                 <Callout
-                  tone='warning'
-                  title={`Llegaron ${unitQty(extra, sku)} más de las anunciadas`}
+                  tone='success'
+                  icon={PackageCheck}
+                  title={`Recepción registrada: ${done.id}`}
                 >
-                  Se recibirán igual. Si es un error de conteo, corrígelo antes
-                  de continuar.
+                  {done.receivedGoodQty > 0
+                    ? `${unitQty(done.receivedGoodQty, doneSku)} quedaron disponibles en ${doneWhName}.`
+                    : 'Ninguna unidad quedó disponible: todo pasó a reclamo.'}
                 </Callout>
-              )}
-
-              <div className='border-t pt-4'>
-                <LiveSummary
-                  good={good}
-                  damaged={damaged}
-                  missing={missing}
-                  sku={sku}
-                />
-              </div>
-
-              <div className='space-y-2 border-t pt-4'>
-                {!step2Ok && (
-                  <p className='text-sm text-muted-foreground'>{step2Reason}</p>
+                {done.claimId && (
+                  <Callout
+                    tone='warning'
+                    icon={FileWarning}
+                    title={`Se abrió el reclamo ${done.claimId}`}
+                  >
+                    {doneClaim
+                      ? `${unitQty(doneClaim.qty, doneSku)} por reclamar a ${doneClaim.counterparty}`
+                      : 'Quedó pendiente de gestionar con el proveedor'}
+                  </Callout>
                 )}
-                <div className='flex gap-2'>
-                  <Button
-                    variant='outline'
-                    className='h-12 px-5'
-                    onClick={() => setStep(0)}
-                  >
-                    Atrás
-                  </Button>
-                  <Button
-                    className='h-12 flex-1'
-                    disabled={!step2Ok}
-                    onClick={() => setStep(2)}
-                  >
-                    Siguiente: fotos
-                    <ChevronRight className='size-4' />
+                <div className='flex flex-col gap-2 sm:flex-row'>
+                  {done.claimId && canSeeClaims && (
+                    <Button
+                      variant='outline'
+                      className='h-10 sm:flex-1'
+                      onClick={onGoToClaims}
+                    >
+                      Ver reclamo
+                    </Button>
+                  )}
+                  <Button className='h-10 sm:flex-1' onClick={reset}>
+                    Registrar otra recepción
                   </Button>
                 </div>
               </div>
-            </div>
+            </Section>
           )}
+        </div>
 
-          {step === 2 && (
-            <div className='space-y-5'>
-              <div className='space-y-2'>
-                <h2 className='text-base font-semibold'>
-                  {needsPhoto
-                    ? 'Fotos de las unidades dañadas'
-                    : 'Fotos de la mercancía'}
-                </h2>
-                {needsPhoto ? (
-                  <p className='text-sm text-muted-foreground'>
-                    Toma al menos una foto de las {unitQty(damaged, sku)}{' '}
-                    {damagedWord(damaged, sku)}. Sirve como soporte del reclamo
-                    al proveedor.
-                  </p>
-                ) : (
-                  <p className='text-sm text-muted-foreground'>
-                    Opcional. Puedes dejar una foto del documento o de la
-                    mercancía.
-                  </p>
-                )}
-                <PhotoCapture
-                  photos={photos}
-                  onChange={setPhotos}
-                  required={needsPhoto}
-                  label={needsPhoto ? 'Tomar foto de daños' : 'Agregar foto'}
-                />
-              </div>
-
-              <dl className='divide-y border-y'>
-                <DefRow label='Bodega'>{whName}</DefRow>
-                <DefRow label='Proveedor'>{supplier.trim()}</DefRow>
-                <DefRow label='Documento'>{docRef.trim()}</DefRow>
-                <DefRow label='Producto'>{sku?.name}</DefRow>
-                {sku?.requiresExpiry && expiry && (
-                  <DefRow label='Vencimiento'>{shortDate(expiry)}</DefRow>
-                )}
-                <DefRow label='Anunciadas'>
-                  {formatQtyWithEquivalent(expected, sku)}
-                </DefRow>
-              </dl>
-
-              <LiveSummary
-                good={good}
-                damaged={damaged}
-                missing={missing}
-                sku={sku}
-              />
-
-              <div className='space-y-2 border-t pt-4'>
-                {!step3Ok && (
-                  <p className={cn('text-sm', TONE.danger.text)}>
-                    Falta al menos una foto de las unidades dañadas para poder
-                    confirmar.
-                  </p>
-                )}
-                <div className='flex gap-2'>
-                  <Button
-                    variant='outline'
-                    className='h-12 px-5'
-                    onClick={() => setStep(1)}
-                  >
-                    Atrás
-                  </Button>
-                  <Button
-                    className='h-12 flex-1'
-                    disabled={!step3Ok}
-                    onClick={confirm}
-                  >
-                    <PackageCheck className='size-5' />
-                    Confirmar recepción
-                  </Button>
-                </div>
-              </div>
-            </div>
-          )}
-        </Section>
-      )}
-
-      {!isReadOnly && baseline !== null && done && (
-        <Section>
-          <div className='space-y-4'>
-            <Callout
-              tone='success'
-              icon={PackageCheck}
-              title={`Recepción registrada: ${done.id}`}
+        {isReadOnly ? (
+          <Section title={`Recepciones recientes (${history.length})`} flush>
+            {historyRows}
+          </Section>
+        ) : (
+          <>
+            <Section
+              title={`Recepciones recientes (${history.length})`}
+              flush
+              className='hidden lg:block'
             >
-              {done.receivedGoodQty > 0
-                ? `${unitQty(done.receivedGoodQty, doneSku)} quedaron disponibles en ${doneWhName}.`
-                : 'Ninguna unidad quedó disponible: todo pasó a reclamo.'}
-            </Callout>
-            {done.claimId && (
-              <Callout
-                tone='warning'
-                icon={FileWarning}
-                title={`Se abrió el reclamo ${done.claimId}`}
-              >
-                {doneClaim
-                  ? `${unitQty(doneClaim.qty, doneSku)} por reclamar a ${doneClaim.counterparty}`
-                  : 'Quedó pendiente de gestionar con el proveedor'}
-              </Callout>
-            )}
-            <div className='flex flex-col gap-2 sm:flex-row'>
-              {done.claimId && canSeeClaims && (
-                <Button
-                  variant='outline'
-                  className='h-12 sm:flex-1'
-                  onClick={onGoToClaims}
-                >
-                  Ver reclamo
-                </Button>
-              )}
-              <Button className='h-12 sm:flex-1' onClick={reset}>
-                Registrar otra recepción
-              </Button>
-            </div>
-          </div>
-        </Section>
-      )}
-
-      {isReadOnly ? (
-        <Section title={`Recepciones recientes (${history.length})`} flush>
-          {historyRows}
-        </Section>
-      ) : (
-        <details className='group rounded-xl border bg-card'>
-          <summary className='flex min-h-12 cursor-pointer list-none items-center justify-between gap-2 px-4 py-3 text-base font-semibold sm:px-5 [&::-webkit-details-marker]:hidden'>
-            Recepciones recientes ({history.length})
-            <ChevronRight className='size-4 text-muted-foreground transition-transform group-open:rotate-90' />
-          </summary>
-          <div className='border-t'>{historyRows}</div>
-        </details>
-      )}
+              {historyRows}
+            </Section>
+            <details className='group rounded-xl border bg-card lg:hidden'>
+              <summary className='flex min-h-10 cursor-pointer list-none items-center justify-between gap-2 px-4 py-3 text-base font-semibold sm:px-5 [&::-webkit-details-marker]:hidden'>
+                Recepciones recientes ({history.length})
+                <ChevronRight className='size-4 text-muted-foreground transition-transform group-open:rotate-90' />
+              </summary>
+              <div className='border-t'>{historyRows}</div>
+            </details>
+          </>
+        )}
+      </div>
     </div>
   )
 }

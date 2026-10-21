@@ -52,7 +52,10 @@ export function canDeliver(order: PickupOrder): boolean {
 }
 
 export type DeliveryBlock =
-  'sin_factura' | 'factura_anulada' | 'ya_entregado' | 'cancelado'
+  | 'sin_factura'
+  | 'factura_anulada'
+  | 'ya_entregado'
+  | 'cancelado'
 
 export function deliveryBlockReason(order: PickupOrder): DeliveryBlock | null {
   // Una factura anulada explica mejor el bloqueo que el estado «Cancelado» del pedido.
@@ -578,10 +581,16 @@ FV-10454;2026-10-20;900.555.321-2;Remodelaciones del Valle;ADH-FLEX-25K;20;51000
 /* -------------------------------------------------------------------------- */
 
 export type ReconStatus =
-  'Entregada' | 'Entrega parcial' | 'Pendiente' | 'Anulada' | 'Sin facturar'
+  | 'Entregada'
+  | 'Entrega parcial'
+  | 'Pendiente'
+  | 'Anulada'
+  | 'Sin facturar'
 
 export type ReconFlag =
-  'anulada_con_entregas' | 'pendiente_vencida' | 'sin_facturar_vencida'
+  | 'anulada_con_entregas'
+  | 'pendiente_vencida'
+  | 'sin_facturar_vencida'
 
 export const RECON_FLAG_LABEL: Record<ReconFlag, string> = {
   anulada_con_entregas: 'Factura anulada con mercancía ya entregada',

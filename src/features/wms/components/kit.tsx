@@ -103,6 +103,7 @@ export function Section({
   children,
   className,
   flush = false,
+  compact = false,
 }: {
   title?: React.ReactNode
   hint?: React.ReactNode
@@ -111,6 +112,8 @@ export function Section({
   className?: string
   /** Sin relleno interno: para listas que llegan hasta el borde. */
   flush?: boolean
+  /** Menos relleno, para tableros densos. */
+  compact?: boolean
 }) {
   return (
     <section className={cn('rounded-xl border bg-card', className)}>
@@ -118,7 +121,9 @@ export function Section({
         <header
           className={cn(
             'flex flex-wrap items-center justify-between gap-2 px-4 pt-4 sm:px-5 sm:pt-5',
-            flush && 'border-b pb-3 sm:pb-4'
+            compact && 'px-3.5 pt-3.5 sm:px-4 sm:pt-4',
+            flush && 'border-b pb-3 sm:pb-4',
+            flush && compact && 'pb-2.5 sm:pb-3'
           )}
         >
           <div className='min-w-0'>
@@ -132,7 +137,12 @@ export function Section({
           {action}
         </header>
       )}
-      <div className={cn(!flush && 'p-4 sm:p-5', !flush && title && 'pt-3')}>
+      <div
+        className={cn(
+          !flush && (compact ? 'p-3.5 sm:p-4' : 'p-4 sm:p-5'),
+          !flush && title && 'pt-3'
+        )}
+      >
         {children}
       </div>
     </section>

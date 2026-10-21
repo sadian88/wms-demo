@@ -111,7 +111,7 @@ export function DamagesScreen() {
         title='Daños y mermas'
         actions={
           canReport && (
-            <Button className='h-11' onClick={() => setReporting(true)}>
+            <Button className='h-10' onClick={() => setReporting(true)}>
               <Plus className='size-4' />
               Reportar daño
             </Button>
@@ -224,7 +224,7 @@ export function DamagesScreen() {
                     (can ? (
                       <div className='mt-3 flex flex-wrap gap-2'>
                         <Button
-                          className='h-11 flex-1 sm:flex-none'
+                          className='h-10 flex-1 sm:flex-none'
                           onClick={() => resolveDamage(d.id, 'Baja aprobada')}
                         >
                           Aprobar baja
@@ -232,7 +232,7 @@ export function DamagesScreen() {
                         {d.claimableToSupplier && (
                           <Button
                             variant='outline'
-                            className='h-11 flex-1 sm:flex-none'
+                            className='h-10 flex-1 sm:flex-none'
                             onClick={() =>
                               resolveDamage(d.id, 'Enviado a reclamo')
                             }
@@ -242,7 +242,7 @@ export function DamagesScreen() {
                         )}
                         <Button
                           variant='outline'
-                          className='h-11 flex-1 sm:flex-none'
+                          className='h-10 flex-1 sm:flex-none'
                           title='Devuelve las unidades a Disponible'
                           onClick={() => resolveDamage(d.id, 'Rechazado')}
                         >
@@ -392,7 +392,7 @@ function ReportDamageDialog({
                     aria-checked={active}
                     onClick={() => setReasonChip(r)}
                     className={cn(
-                      'h-11 rounded-full border px-4 text-sm font-medium transition-colors',
+                      'h-10 rounded-full border px-4 text-sm font-medium transition-colors',
                       active
                         ? 'border-primary bg-primary text-primary-foreground'
                         : 'bg-card text-muted-foreground hover:bg-accent hover:text-foreground'
@@ -405,7 +405,7 @@ function ReportDamageDialog({
             </div>
             {reasonChip === OTHER_REASON && (
               <Input
-                className='h-11'
+                className='h-10'
                 value={other}
                 onChange={(e) => setOther(e.target.value)}
                 placeholder='Cuéntanos qué pasó'
@@ -437,7 +437,7 @@ function ReportDamageDialog({
             />
           </label>
 
-          <label className='flex min-h-11 cursor-pointer items-center gap-3 text-sm'>
+          <label className='flex min-h-10 cursor-pointer items-center gap-3 text-sm'>
             <Checkbox
               className='size-5'
               checked={claimable}
@@ -469,14 +469,14 @@ function ReportDamageDialog({
               <Button
                 type='button'
                 variant='outline'
-                className='h-11'
+                className='h-10'
                 onClick={() => onOpenChange(false)}
               >
                 Cancelar
               </Button>
               <Button
                 type='submit'
-                className='h-11 flex-1 sm:flex-none'
+                className='h-10 flex-1 sm:flex-none'
                 disabled={!valid}
               >
                 Reportar daño
@@ -527,7 +527,7 @@ export function CountsScreen({
         title='Conteos de inventario'
         actions={
           canSchedule && (
-            <Button className='h-11' onClick={() => setScheduling(true)}>
+            <Button className='h-10' onClick={() => setScheduling(true)}>
               <Plus className='size-4' />
               Programar conteo
             </Button>
@@ -594,20 +594,36 @@ export function CountsScreen({
 
               return (
                 <ListRow key={c.id} className='items-start'>
-                  <RowTitle sku={sku} code={c.sku} />
-                  <div className='text-sm text-muted-foreground'>
-                    Partida {c.partidaId} · {c.warehouse} ·{' '}
-                    {shortDate(c.scheduledAt)}
-                  </div>
+                  <div className='flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between lg:gap-6'>
+                    <div className='min-w-0'>
+                      <RowTitle sku={sku} code={c.sku} />
+                      <div className='text-sm text-muted-foreground'>
+                        Partida {c.partidaId} · {c.warehouse} ·{' '}
+                        {shortDate(c.scheduledAt)}
+                      </div>
+                      {c.status === 'Programado' ? (
+                        !isReadOnly && (
+                          <p className='mt-1 text-sm text-muted-foreground'>
+                            Cuenta lo que hay en el piso
+                            {sku ? `, en ${unitWord(2, sku)}` : ''}. El stock
+                            del sistema está oculto a propósito.
+                          </p>
+                        )
+                      ) : (
+                        <div className='mt-0.5 text-sm text-muted-foreground tabular-nums'>
+                          Contó {unitQty(c.countedQty ?? 0, sku)}
+                          {c.countedBy ? ` (${c.countedBy})` : ''}
+                        </div>
+                      )}
+                    </div>
 
-                  {c.status === 'Programado' ? (
-                    !isReadOnly && (
-                      <div className='mt-3 space-y-2'>
-                        <div className='flex gap-2'>
+                    {c.status === 'Programado' ? (
+                      !isReadOnly && (
+                        <div className='flex gap-2 lg:w-96 lg:shrink-0'>
                           <Input
                             inputMode='numeric'
                             autoComplete='off'
-                            className='h-14 min-w-0 flex-1 text-center text-2xl font-semibold tabular-nums placeholder:text-base placeholder:font-normal sm:max-w-64 md:text-2xl'
+                            className='h-10 min-w-0 flex-1 text-center tabular-nums'
                             placeholder='Cantidad contada'
                             aria-label={`Cantidad contada de ${sku?.name ?? c.sku}`}
                             value={val}
@@ -619,27 +635,16 @@ export function CountsScreen({
                             }
                           />
                           <Button
-                            className='h-14 px-5'
+                            className='h-10 shrink-0'
                             disabled={!validNum}
                             onClick={() => submitCount(c.id, num)}
                           >
                             Registrar conteo
                           </Button>
                         </div>
-                        <p className='text-sm text-muted-foreground'>
-                          Cuenta lo que hay en el piso
-                          {sku ? `, en ${unitWord(2, sku)}` : ''}. El stock del
-                          sistema está oculto a propósito.
-                        </p>
-                      </div>
-                    )
-                  ) : (
-                    <>
-                      <div className='mt-0.5 text-sm text-muted-foreground tabular-nums'>
-                        Contó {unitQty(c.countedQty ?? 0, sku)}
-                        {c.countedBy ? ` (${c.countedBy})` : ''}
-                      </div>
-                      <div className='mt-2 flex flex-wrap items-center gap-2'>
+                      )
+                    ) : (
+                      <div className='flex flex-wrap items-center gap-2 lg:shrink-0 lg:justify-end'>
                         {c.status === 'Ajuste generado' ? (
                           <>
                             <StatusPill tone='danger'>
@@ -651,7 +656,7 @@ export function CountsScreen({
                             </span>
                             <Button
                               variant='outline'
-                              className='ms-auto h-11'
+                              className='ms-auto h-10 lg:ms-2'
                               onClick={onGoToAdjustments}
                             >
                               Ver ajuste
@@ -661,8 +666,8 @@ export function CountsScreen({
                           <StatusPill tone='success'>Cuadrado</StatusPill>
                         )}
                       </div>
-                    </>
-                  )}
+                    )}
+                  </div>
                 </ListRow>
               )
             })}
@@ -731,13 +736,13 @@ function ScheduleCountDialog({
           <div className='flex gap-2 sm:justify-end'>
             <Button
               variant='outline'
-              className='h-11'
+              className='h-10'
               onClick={() => onOpenChange(false)}
             >
               Cancelar
             </Button>
             <Button
-              className='h-11 flex-1 sm:flex-none'
+              className='h-10 flex-1 sm:flex-none'
               disabled={!partida}
               onClick={() => {
                 if (!partida) return
@@ -826,14 +831,14 @@ export function AdjustmentsScreen() {
           (can ? (
             <div className='mt-3 flex flex-wrap gap-2'>
               <Button
-                className='h-11 flex-1 sm:flex-none'
+                className='h-10 flex-1 sm:flex-none'
                 onClick={() => resolveAdjustment(a.id, true)}
               >
                 Aprobar ajuste
               </Button>
               <Button
                 variant='outline'
-                className='h-11 flex-1 sm:flex-none'
+                className='h-10 flex-1 sm:flex-none'
                 onClick={() => resolveAdjustment(a.id, false)}
               >
                 Rechazar
@@ -881,7 +886,7 @@ export function AdjustmentsScreen() {
 
       {resolved.length > 0 && (
         <details className='group rounded-xl border bg-card'>
-          <summary className='flex min-h-12 cursor-pointer list-none items-center justify-between gap-2 px-4 py-3 text-base font-semibold sm:px-5 [&::-webkit-details-marker]:hidden'>
+          <summary className='flex min-h-10 cursor-pointer list-none items-center justify-between gap-2 px-4 py-3 text-base font-semibold sm:px-5 [&::-webkit-details-marker]:hidden'>
             Historial ({resolved.length})
             <span className='text-sm font-normal text-muted-foreground group-open:hidden'>
               Mostrar

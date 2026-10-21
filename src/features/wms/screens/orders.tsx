@@ -48,7 +48,7 @@ type Tab =
   | 'anulados'
 
 const PAGE_SIZE = 30
-const ACTION_BTN = 'h-11 sm:h-10'
+const ACTION_BTN = 'h-10'
 
 export function OrdersScreen({ onGoToPickup }: { onGoToPickup: () => void }) {
   const { role, isReadOnly, skus, orders, warehouses, matchesScope } = useWms()
@@ -266,7 +266,7 @@ export function OrdersScreen({ onGoToPickup }: { onGoToPickup: () => void }) {
               </span>
               <Search className='pointer-events-none absolute start-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground' />
               <Input
-                className='h-11 ps-9 pe-10 sm:h-10'
+                className='h-10 ps-9 pe-10 sm:h-10'
                 value={query}
                 onChange={(e) => changeQuery(e.target.value)}
                 placeholder='Cliente, NIT, factura o pedido'

@@ -102,7 +102,7 @@ export function WmsWorkspace({ screenSlug = '1-1' }: { screenSlug?: string }) {
         </div>
       </Header>
 
-      <Main className='space-y-6'>
+      <Main fluid className='py-4'>
         {!allowed && mod.id !== 7 ? (
           <div className='mx-auto max-w-md space-y-3 rounded-xl border bg-card p-8 text-center'>
             <div className='mx-auto flex size-10 items-center justify-center rounded-full bg-danger-soft text-danger-ink'>

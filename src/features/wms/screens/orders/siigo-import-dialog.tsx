@@ -224,7 +224,7 @@ function SiigoFlow({
             <Button
               type='button'
               variant='outline'
-              className='h-12 w-full border-dashed'
+              className='h-10 w-full border-dashed'
               onClick={() => fileRef.current?.click()}
             >
               <Upload className='size-4' />
@@ -408,7 +408,7 @@ function SiigoFlow({
         <div className='flex flex-col items-center gap-2 py-6 text-center'>
           <div
             className={cn(
-              'flex size-12 items-center justify-center rounded-full',
+              'flex size-10 items-center justify-center rounded-full',
               result.imported + result.voided > 0
                 ? 'bg-success-soft text-success-ink'
                 : 'bg-warning-soft text-warning-ink'

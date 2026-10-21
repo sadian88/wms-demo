@@ -82,18 +82,18 @@ export function QtyStepper({
         <Button
           type='button'
           variant='outline'
-          className='size-12 shrink-0'
+          className='size-10 shrink-0'
           aria-label={`Quitar una: ${label}`}
           disabled={value <= 0}
           onClick={() => onChange(clamp(value - 1))}
         >
-          <Minus className='size-5' />
+          <Minus className='size-4' />
         </Button>
         <Input
           id={id}
           inputMode='numeric'
           autoComplete='off'
-          className='h-12 min-w-0 flex-1 text-center text-xl font-semibold tabular-nums md:text-xl'
+          className='h-10 min-w-0 flex-1 text-center font-semibold tabular-nums'
           value={value}
           onFocus={(e) => e.target.select()}
           onChange={(e) => {
@@ -104,12 +104,12 @@ export function QtyStepper({
         <Button
           type='button'
           variant='outline'
-          className='size-12 shrink-0'
+          className='size-10 shrink-0'
           aria-label={`Agregar una: ${label}`}
           disabled={max !== undefined && value >= max}
           onClick={() => onChange(clamp(value + 1))}
         >
-          <Plus className='size-5' />
+          <Plus className='size-4' />
         </Button>
       </div>
       {hint && <p className='mt-1 text-sm text-muted-foreground'>{hint}</p>}
@@ -196,7 +196,7 @@ export function ItemPicker({
           <div className='relative'>
             <Search className='pointer-events-none absolute start-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground' />
             <Input
-              className='h-11 ps-9'
+              className='h-10 ps-9'
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder={placeholder}
@@ -213,7 +213,7 @@ export function ItemPicker({
                   <button
                     type='button'
                     onClick={() => onChange(item.id)}
-                    className='flex min-h-12 w-full items-center gap-3 px-3 py-2 text-start transition-colors hover:bg-accent/60'
+                    className='flex min-h-10 w-full items-center gap-3 px-3 py-2 text-start transition-colors hover:bg-accent/60'
                   >
                     {row(item)}
                   </button>

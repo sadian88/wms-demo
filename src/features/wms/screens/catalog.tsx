@@ -96,7 +96,7 @@ function parseDecimal(s: string): number {
 const plainNum = (n: number) => String(Number(n.toFixed(2))).replace('.', ',')
 
 /** Alto de los controles: cómodo con el dedo en móvil, compacto en escritorio. */
-const CONTROL = 'h-11 sm:h-10'
+const CONTROL = 'h-10'
 
 const digitsOnly = (s: string) => s.replace(/\D/g, '')
 const moneyInput = (digits: string) =>
@@ -153,7 +153,7 @@ export function CatalogScreen() {
         title='Catálogo y conversiones'
         actions={
           canEdit ? (
-            <Button onClick={openCreate} className='h-11 gap-2 sm:h-10'>
+            <Button onClick={openCreate} className='h-10 gap-2 sm:h-10'>
               <Plus />
               Nuevo producto
             </Button>
@@ -189,14 +189,14 @@ export function CatalogScreen() {
               placeholder='Buscar por nombre o código'
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              className='h-11 ps-9 sm:h-10'
+              className='h-10 ps-9 sm:h-10'
             />
           </div>
           <select
             aria-label='Filtrar por categoría'
             value={category}
             onChange={(e) => setCategory(e.target.value)}
-            className={`${SELECT_CLASS} h-11 sm:h-10 sm:w-64`}
+            className={`${SELECT_CLASS} h-10 sm:w-64`}
           >
             <option value='ALL'>Todas las categorías</option>
             {categories.map((c) => (
@@ -397,7 +397,7 @@ function ConversionCalculator({ skus }: { skus: SkuItem[] }) {
 
   return (
     <details className='group rounded-xl border bg-card'>
-      <summary className='flex min-h-12 cursor-pointer list-none items-center gap-3 px-4 py-3 sm:px-5 [&::-webkit-details-marker]:hidden'>
+      <summary className='flex min-h-10 cursor-pointer list-none items-center gap-3 px-4 py-3 sm:px-5 [&::-webkit-details-marker]:hidden'>
         <Calculator className='size-5 text-muted-foreground' aria-hidden />
         <span className='flex-1 font-medium'>Calculadora de conversión</span>
         <ChevronRight
@@ -411,7 +411,7 @@ function ConversionCalculator({ skus }: { skus: SkuItem[] }) {
           <select
             value={sku.sku}
             onChange={(e) => setSkuCode(e.target.value)}
-            className={`${SELECT_CLASS} h-11`}
+            className={`${SELECT_CLASS} h-10`}
           >
             {convertible.map((s) => (
               <option key={s.sku} value={s.sku}>
@@ -430,7 +430,7 @@ function ConversionCalculator({ skus }: { skus: SkuItem[] }) {
               onChange={(e) =>
                 setEntry({ field: 'target', value: e.target.value })
               }
-              className='h-11 tabular-nums'
+              className='h-10 tabular-nums'
             />
           </Field>
           <Field label={`Cantidad en ${unitName(sku.unitMeasure, 2)}`}>
@@ -441,7 +441,7 @@ function ConversionCalculator({ skus }: { skus: SkuItem[] }) {
               onChange={(e) =>
                 setEntry({ field: 'base', value: e.target.value })
               }
-              className='h-11 tabular-nums'
+              className='h-10 tabular-nums'
             />
           </Field>
         </div>
@@ -798,7 +798,7 @@ function SkuFormDialog({
                   >
                     Cada {unitLabel} se vendería con pérdida. Corrige el precio
                     o confirma para guardarlo así.
-                    <label className='mt-3 flex min-h-11 cursor-pointer items-center gap-3 font-medium'>
+                    <label className='mt-3 flex min-h-10 cursor-pointer items-center gap-3 font-medium'>
                       <input
                         type='checkbox'
                         checked={confirmLoss}
@@ -913,12 +913,12 @@ function SkuFormDialog({
             <Button
               type='button'
               variant='outline'
-              className='h-11 flex-1 sm:h-10 sm:flex-none'
+              className='h-10 flex-1 sm:h-10 sm:flex-none'
               onClick={onClose}
             >
               Cancelar
             </Button>
-            <Button type='submit' className='h-11 flex-1 sm:h-10 sm:flex-none'>
+            <Button type='submit' className='h-10 flex-1 sm:h-10 sm:flex-none'>
               {isNew ? 'Crear producto' : 'Guardar cambios'}
             </Button>
           </div>

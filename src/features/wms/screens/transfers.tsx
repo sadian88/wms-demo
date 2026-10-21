@@ -209,7 +209,7 @@ export function TransfersScreen() {
           canMove ? (
             <Button
               onClick={() => setRequestOpen(true)}
-              className='h-11 gap-2 sm:h-10'
+              className='h-10 gap-2 sm:h-10'
             >
               <Plus />
               Solicitar traspaso
@@ -247,7 +247,7 @@ export function TransfersScreen() {
             action={
               canMove ? (
                 <Button
-                  className='mt-1 h-11 sm:h-10'
+                  className='mt-1 h-10'
                   onClick={() => setRequestOpen(true)}
                 >
                   Solicitar traspaso
@@ -305,7 +305,7 @@ export function TransfersScreen() {
                     {action ? (
                       <Button
                         onClick={action.run}
-                        className='h-11 gap-2 sm:h-10'
+                        className='h-10 gap-2 sm:h-10'
                       >
                         <action.icon />
                         {action.label}
@@ -390,7 +390,7 @@ export function TransfersScreen() {
               <DialogFooter>
                 <Button
                   variant='outline'
-                  className='h-11 sm:h-10'
+                  className='h-10'
                   onClick={() => setReceiveId(null)}
                 >
                   Cancelar
@@ -507,7 +507,7 @@ function TransferDetail({
       {action && (
         <SheetFooter className='border-t'>
           <Button
-            className='h-12 gap-2'
+            className='h-10 gap-2'
             onClick={() => {
               action.run()
               onAction()
@@ -585,7 +585,7 @@ function RequestTransferDialog({ onClose }: { onClose: () => void }) {
             <select
               value={partidaId}
               onChange={(e) => setPartidaId(e.target.value)}
-              className={`${SELECT_CLASS} h-11`}
+              className={`${SELECT_CLASS} h-10`}
             >
               <option value=''>Elige un producto…</option>
               {options.map((p) => {
@@ -603,7 +603,7 @@ function RequestTransferDialog({ onClose }: { onClose: () => void }) {
             <select
               value={destWh}
               onChange={(e) => setDestWh(e.target.value)}
-              className={`${SELECT_CLASS} h-11`}
+              className={`${SELECT_CLASS} h-10`}
             >
               <option value=''>Elige una bodega…</option>
               {warehouses
@@ -630,19 +630,19 @@ function RequestTransferDialog({ onClose }: { onClose: () => void }) {
               placeholder='0'
               value={qty}
               onChange={(e) => setQty(e.target.value.replace(/\D/g, ''))}
-              className='h-11 tabular-nums'
+              className='h-10 tabular-nums'
             />
           </Field>
           <DialogFooter className='pt-2'>
             <Button
               type='button'
               variant='outline'
-              className='h-11 sm:h-10'
+              className='h-10'
               onClick={onClose}
             >
               Cancelar
             </Button>
-            <Button type='submit' className='h-11 sm:h-10'>
+            <Button type='submit' className='h-10'>
               Solicitar traspaso
             </Button>
           </DialogFooter>

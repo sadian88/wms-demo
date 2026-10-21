@@ -6,11 +6,13 @@ import {
   ClipboardCheck,
   FileWarning,
   FileX,
+  Hourglass,
   PackageCheck,
   ReceiptText,
   Scale,
   ShieldAlert,
   ShoppingBag,
+  TrendingUp,
   Truck,
   Boxes,
   Receipt,
@@ -20,11 +22,14 @@ import { cn } from '@/lib/utils'
 import { useWms } from '@/context/wms-provider'
 import { Button } from '@/components/ui/button'
 import {
+  FilterTabs,
   Section,
   StatusPill,
   TONE,
   type Tone,
 } from '@/features/wms/components/kit'
+import { CategoryAvatar } from '@/features/wms/components/visual/category-icons'
+import { CategorySalesChart } from '@/features/wms/components/visual/category-sales-chart'
 import { DonutStockChart } from '@/features/wms/components/visual/donut-stock-chart'
 import {
   copCompact,
@@ -32,11 +37,17 @@ import {
   plural,
 } from '@/features/wms/components/visual/format'
 import {
-  SummaryStrip,
-  type SummaryItem,
-} from '@/features/wms/components/visual/summary-strip'
+  KpiTile,
+  type KpiTileProps,
+} from '@/features/wms/components/visual/kpi-tile'
+import { SalesTrendChart } from '@/features/wms/components/visual/sales-trend-chart'
 import { findScreenBySlug } from '@/features/wms/data/catalog'
 import { TODAY_STR } from '@/features/wms/domain/clock'
+import {
+  categorySales,
+  productSales,
+  salesOverview,
+} from '@/features/wms/domain/dashboard'
 import {
   APPROVAL_THRESHOLD_COP,
   EXPIRY_WARN_DAYS,
@@ -46,9 +57,16 @@ import {
   type StockState,
 } from '@/features/wms/domain/inventory'
 import { canDeliver, reconcile } from '@/features/wms/domain/invoicing'
-import { PageHeader, cop, nf } from './ui-helpers'
+import { EmptyState, PageHeader, cop, nf } from './ui-helpers'
 
-const MAX_VISIBLE_ACTIONS = 6
+const MAX_VISIBLE_ACTIONS = 5
+
+const PERIODS = [
+  { id: '7', label: '7 días' },
+  { id: '14', label: '14 días' },
+  { id: '30', label: '30 días' },
+] as const
+type PeriodId = (typeof PERIODS)[number]['id']
 
 interface ActionItem {
   key: string
@@ -141,6 +159,8 @@ export function PanelScreen({
   } = useWms()
 
   const [showAll, setShowAll] = useState(false)
+  const [period, setPeriod] = useState<PeriodId>('7')
+  const days = Number(period)
 
   const canGo = (slug: string) => hasAccess(findScreenBySlug(slug).scr)
   const skuName = (sku: string) => skus.find((s) => s.sku === sku)?.name ?? sku
@@ -193,39 +213,63 @@ export function PanelScreen({
     r.flags.includes('pendiente_vencida')
   )
 
-  const statExistencia: SummaryItem = {
+  /* ------------------------------ Ventas del período ------------------------------ */
+
+  const canSales = canGo('4-1')
+  const windowOpts = { todayStr: TODAY_STR, days, inScope: matchesScope }
+  const sales = salesOverview(orders, skus, windowOpts)
+  const products = productSales(orders, skus, windowOpts)
+  const categories = categorySales(products)
+
+  const tileVentas: KpiTileProps = {
+    label: 'Ventas facturadas',
+    value: copCompact(sales.invoicedCOP),
+    hint: plural(sales.invoicedCount, 'factura', 'facturas'),
+    icon: TrendingUp,
+    delta:
+      sales.deltaPct === null
+        ? null
+        : { pct: sales.deltaPct, versus: `${days} días previos` },
+    trend: sales.days.map((d) => d.invoicedCOP),
+    onSelect: canGo('4-3') ? () => onNavigate('4-3') : undefined,
+  }
+  const tileExistencia: KpiTileProps = {
     label: 'En existencia',
     value: nf(enExistencia.units),
     unit: 'unidades',
     hint: showCost
       ? `${copCompact(enExistencia.valueCOP)} a costo`
       : 'Listas para vender',
-    slug: '2-1',
+    icon: Boxes,
+    tone: 'success',
+    onSelect: canGo('2-1') ? () => onNavigate('2-1') : undefined,
   }
-  const statPorEntregar: SummaryItem = {
+  const tilePorEntregar: KpiTileProps = {
     label: 'Por entregar',
     value: nf(porEntregar.activeOrdersCount),
     unit: porEntregar.activeOrdersCount === 1 ? 'pedido' : 'pedidos',
     hint: `${copCompact(porEntregar.saleValueCOP)} de venta`,
-    slug: '4-1',
+    icon: PackageCheck,
+    onSelect: canGo('4-1') ? () => onNavigate('4-1') : undefined,
   }
-  const statProblema: SummaryItem = {
+  const tileProblema: KpiTileProps = {
     label: 'Con problema',
     value: nf(problemUnits),
     unit: 'unidades',
     hint:
       problemUnits > 0
-        ? `Dañado ${nf(danada.units)} · En reclamo ${nf(porReclamar.units)}`
+        ? `Dañado ${nf(danada.units)} · Reclamo ${nf(porReclamar.units)}`
         : 'Todo en orden',
+    icon: ShieldAlert,
     tone:
       danada.units > 0
         ? 'danger'
         : porReclamar.units > 0
           ? 'warning'
-          : undefined,
-    slug: '5-1',
+          : 'success',
+    onSelect: canGo('5-1') ? () => onNavigate('5-1') : undefined,
   }
-  const statRiesgo: SummaryItem = {
+  const tileRiesgo: KpiTileProps = {
     label: 'En riesgo',
     value: nf(rezagadaPorVencer.units),
     unit: 'unidades',
@@ -233,38 +277,56 @@ export function PanelScreen({
       rezagadaPorVencer.units > 0
         ? `${plural(rezagadaPorVencer.stalePartidasCount, 'rezagada', 'rezagadas')} · ${rezagadaPorVencer.expiringSoonCount} por vencer`
         : 'Nada rezagado ni por vencer',
-    tone: rezagadaPorVencer.units > 0 ? 'warning' : undefined,
-    slug: '6-2',
+    icon: Hourglass,
+    tone: rezagadaPorVencer.units > 0 ? 'warning' : 'success',
+    onSelect: canGo('6-2') ? () => onNavigate('6-2') : undefined,
   }
-  const statUnbilled: SummaryItem = {
+  const tileSinFacturar: KpiTileProps = {
     label: 'Sin facturar',
     value: nf(unbilled.length),
     unit: unbilled.length === 1 ? 'pedido' : 'pedidos',
     hint: unbilled.length > 0 ? 'No se pueden entregar' : 'Todo facturado',
-    tone: unbilled.length > 0 ? 'warning' : undefined,
-    slug: '4-1',
+    icon: ReceiptText,
+    tone: unbilled.length > 0 ? 'warning' : 'success',
+    onSelect: canGo('4-1') ? () => onNavigate('4-1') : undefined,
   }
-  const statOverdue: SummaryItem = {
+  const tileSinRetirar: KpiTileProps = {
     label: 'Sin retirar',
     value: nf(overdue.length),
     unit: overdue.length === 1 ? 'factura' : 'facturas',
     hint: `Más de ${PICKUP_OVERDUE_DAYS} días`,
-    tone: overdue.length > 0 ? 'warning' : undefined,
-    slug: '4-3',
+    icon: CalendarClock,
+    tone: overdue.length > 0 ? 'warning' : 'success',
+    onSelect: canGo('4-3') ? () => onNavigate('4-3') : undefined,
   }
 
-  const stripByRole: Record<RoleCode, SummaryItem[]> = {
-    ADM: [statExistencia, statPorEntregar, statProblema, statRiesgo],
-    JB: [statExistencia, statPorEntregar, statProblema, statRiesgo],
-    GER: [statExistencia, statPorEntregar, statProblema, statRiesgo],
-    OPE: [statExistencia, statPorEntregar, statProblema, statRiesgo],
-    ASE: [statExistencia, statPorEntregar, statUnbilled],
-    CAJ: [statUnbilled, statPorEntregar, statOverdue],
+  const tilesByRole: Record<RoleCode, KpiTileProps[]> = {
+    ADM: [
+      tileVentas,
+      tilePorEntregar,
+      tileExistencia,
+      tileProblema,
+      tileRiesgo,
+    ],
+    JB: [tileVentas, tilePorEntregar, tileExistencia, tileProblema, tileRiesgo],
+    GER: [
+      tileVentas,
+      tilePorEntregar,
+      tileExistencia,
+      tileProblema,
+      tileRiesgo,
+    ],
+    OPE: [
+      tileVentas,
+      tilePorEntregar,
+      tileExistencia,
+      tileProblema,
+      tileRiesgo,
+    ],
+    ASE: [tileVentas, tilePorEntregar, tileSinFacturar, tileExistencia],
+    CAJ: [tileVentas, tileSinFacturar, tilePorEntregar, tileSinRetirar],
   }
-  const strip = stripByRole[role].map((s) => ({
-    ...s,
-    slug: s.slug && canGo(s.slug) ? s.slug : undefined,
-  }))
+  const tiles = tilesByRole[role]
 
   /* ------------------------------ Requiere acción hoy ------------------------------ */
 
@@ -515,98 +577,160 @@ export function PanelScreen({
     segment('danado', danada.units, '5-1'),
   ]
 
+  const topProducts = products.slice(0, 4)
+
   return (
-    <div className='space-y-5 sm:space-y-6'>
+    <div className='space-y-3'>
       <PageHeader
         title={`Hola, ${firstName}`}
         subtitle={`${scopeLabel} · ${todayLabel}`}
+        actions={
+          <>
+            {canSales && (
+              <FilterTabs
+                value={period}
+                onChange={setPeriod}
+                options={PERIODS.map((p) => ({ id: p.id, label: p.label }))}
+              />
+            )}
+            {shortcuts.map((s, i) => {
+              const Icon = s.icon
+              return (
+                <Button
+                  key={s.label}
+                  type='button'
+                  variant={i === 0 ? 'default' : 'outline'}
+                  className='h-10 shadow-none'
+                  onClick={() => onNavigate(s.slug)}
+                >
+                  <Icon className='size-4' />
+                  {s.label}
+                </Button>
+              )
+            })}
+          </>
+        }
       />
 
-      <SummaryStrip items={strip} onNavigate={onNavigate} />
+      <div
+        className={cn(
+          'grid grid-cols-1 gap-3 min-[500px]:grid-cols-2',
+          tiles.length === 5
+            ? 'lg:grid-cols-3 xl:grid-cols-5'
+            : 'xl:grid-cols-4'
+        )}
+      >
+        {tiles.map((t) => (
+          <KpiTile key={t.label} {...t} />
+        ))}
+      </div>
 
-      <div className='grid items-start gap-5 sm:gap-6 xl:grid-cols-3'>
-        <Section
-          flush
-          title='Requiere acción hoy'
-          action={
-            actions.length > 0 ? (
-              <StatusPill tone={hasDanger ? 'danger' : 'warning'}>
-                {plural(actions.length, 'pendiente', 'pendientes')}
-              </StatusPill>
-            ) : undefined
-          }
-          className='xl:col-span-2'
-        >
-          {actions.length === 0 ? (
-            <div className='flex flex-col items-center gap-2 px-4 py-10 text-center'>
-              <div
-                className={cn(
-                  'flex size-10 items-center justify-center rounded-full',
-                  TONE.success.soft
-                )}
-              >
-                <CheckCircle2 className='size-5' />
-              </div>
-              <div className='text-sm font-medium'>Todo al día</div>
-              <p className='max-w-sm text-sm text-muted-foreground'>
-                No tienes nada pendiente por ahora. Cuando haya algo que
-                resolver, aparecerá aquí.
-              </p>
-            </div>
-          ) : (
-            <>
-              <ul className='divide-y'>
-                {visibleActions.map((a) => (
-                  <ActionRow
-                    key={a.key}
-                    item={a}
-                    onGo={() => onNavigate(a.slug)}
-                  />
-                ))}
-              </ul>
-              {actions.length > MAX_VISIBLE_ACTIONS && (
-                <button
-                  type='button'
-                  onClick={() => setShowAll((v) => !v)}
-                  className='flex h-12 w-full items-center justify-center border-t text-sm font-medium text-primary transition-colors hover:bg-accent/60'
-                >
-                  {showAll ? 'Ver menos' : `Ver todo (${actions.length})`}
-                </button>
-              )}
-            </>
-          )}
-        </Section>
-
-        <div className='space-y-5 sm:space-y-6'>
-          {shortcuts.length > 0 && (
-            <Section title='Atajos'>
-              <div className='grid gap-2 sm:grid-cols-[repeat(auto-fit,minmax(14rem,1fr))] xl:grid-cols-1'>
-                {shortcuts.map((s, i) => {
-                  const Icon = s.icon
-                  return (
-                    <Button
-                      key={s.label}
-                      type='button'
-                      variant={i === 0 ? 'default' : 'outline'}
-                      className='h-12 justify-start gap-3 px-4 text-base shadow-none'
-                      onClick={() => onNavigate(s.slug)}
-                    >
-                      <Icon className='size-5' />
-                      {s.label}
-                    </Button>
-                  )
-                })}
-              </div>
+      <div className='grid grid-cols-1 items-start gap-3 xl:grid-cols-12'>
+        <div className='space-y-3 xl:col-span-8'>
+          {canSales && (
+            <Section
+              compact
+              title='Ventas por día'
+              hint={`Facturado ${copCompact(sales.invoicedCOP)} · Entregado ${copCompact(sales.deliveredCOP)} en ${days} días`}
+            >
+              <SalesTrendChart days={sales.days} />
             </Section>
           )}
 
+          <Section
+            flush
+            compact
+            title='Requiere acción hoy'
+            action={
+              actions.length > 0 ? (
+                <StatusPill tone={hasDanger ? 'danger' : 'warning'}>
+                  {plural(actions.length, 'pendiente', 'pendientes')}
+                </StatusPill>
+              ) : undefined
+            }
+          >
+            {actions.length === 0 ? (
+              <div className='flex flex-col items-center gap-2 px-4 py-8 text-center'>
+                <div
+                  className={cn(
+                    'flex size-10 items-center justify-center rounded-full',
+                    TONE.success.soft
+                  )}
+                >
+                  <CheckCircle2 className='size-5' />
+                </div>
+                <div className='text-sm font-medium'>Todo al día</div>
+                <p className='max-w-sm text-sm text-muted-foreground'>
+                  No tienes nada pendiente por ahora. Cuando haya algo que
+                  resolver, aparecerá aquí.
+                </p>
+              </div>
+            ) : (
+              <>
+                <ul className='divide-y'>
+                  {visibleActions.map((a) => (
+                    <ActionRow
+                      key={a.key}
+                      item={a}
+                      onGo={() => onNavigate(a.slug)}
+                    />
+                  ))}
+                </ul>
+                {actions.length > MAX_VISIBLE_ACTIONS && (
+                  <button
+                    type='button'
+                    onClick={() => setShowAll((v) => !v)}
+                    className='flex h-10 w-full items-center justify-center border-t text-sm font-medium text-primary transition-colors hover:bg-accent/60'
+                  >
+                    {showAll ? 'Ver menos' : `Ver todo (${actions.length})`}
+                  </button>
+                )}
+              </>
+            )}
+          </Section>
+        </div>
+
+        <div className='space-y-3 xl:col-span-4'>
           {canGo('2-1') && (
-            <Section title='Distribución del inventario'>
+            <Section compact title='Estado del inventario'>
               <DonutStockChart
                 segments={segments}
                 centerValue={nf(enExistencia.totalPhysicalUnits)}
                 centerLabel='unidades'
               />
+            </Section>
+          )}
+
+          {canSales && (
+            <Section
+              compact
+              title='Ventas por categoría'
+              hint={`Últimos ${days} días`}
+            >
+              {categories.length === 0 ? (
+                <EmptyState text='No hay facturas emitidas en este período.' />
+              ) : (
+                <CategorySalesChart rows={categories} />
+              )}
+            </Section>
+          )}
+
+          {canSales && topProducts.length > 0 && (
+            <Section compact flush title='Más vendidos'>
+              <ul className='divide-y'>
+                {topProducts.map((p) => (
+                  <TopProductRow
+                    key={p.sku}
+                    name={p.name}
+                    category={p.category}
+                    units={`${nf(p.units)} ${p.units === 1 ? p.unitMeasure.toLowerCase() : 'uds.'}`}
+                    revenue={copCompact(p.revenueCOP)}
+                    onSelect={
+                      canGo('2-4') ? () => onNavigate('2-4') : undefined
+                    }
+                  />
+                ))}
+              </ul>
             </Section>
           )}
         </div>
@@ -627,19 +751,19 @@ function ActionRow({ item, onGo }: { item: ActionItem; onGo: () => void }) {
       <button
         type='button'
         onClick={onGo}
-        className='flex w-full items-start gap-3 px-4 py-3.5 text-start transition-colors hover:bg-accent/60 sm:items-center sm:px-5'
+        className='flex w-full items-start gap-3 px-3.5 py-2.5 text-start transition-colors hover:bg-accent/60 sm:items-center sm:px-4'
       >
         <span
           className={cn(
-            'flex size-9 shrink-0 items-center justify-center rounded-lg',
+            'flex size-8 shrink-0 items-center justify-center rounded-lg',
             TONE[item.tone].soft
           )}
         >
-          <Icon className='size-[18px]' aria-hidden />
+          <Icon className='size-4' aria-hidden />
         </span>
         <span className='min-w-0 flex-1'>
           <span className='block text-sm font-medium'>{item.title}</span>
-          <span className='mt-0.5 line-clamp-2 block text-sm text-muted-foreground'>
+          <span className='line-clamp-1 text-sm text-muted-foreground'>
             {item.detail}
           </span>
           <span className='mt-1.5 inline-flex items-center gap-0.5 text-sm font-medium text-primary sm:hidden'>
@@ -652,6 +776,52 @@ function ActionRow({ item, onGo }: { item: ActionItem; onGo: () => void }) {
           <ChevronRight className='size-4' aria-hidden />
         </span>
       </button>
+    </li>
+  )
+}
+
+/** Fila de «Más vendidos»: miniatura de la categoría, nombre, unidades y valor facturado. */
+function TopProductRow({
+  name,
+  category,
+  units,
+  revenue,
+  onSelect,
+}: {
+  name: string
+  category: string
+  units: string
+  revenue: string
+  onSelect?: () => void
+}) {
+  const content = (
+    <>
+      <CategoryAvatar category={category} size='sm' />
+      <span className='min-w-0 flex-1'>
+        <span className='block truncate text-sm font-medium' title={name}>
+          {name}
+        </span>
+        <span className='block text-sm text-muted-foreground'>{units}</span>
+      </span>
+      <span className='shrink-0 text-sm font-semibold tabular-nums'>
+        {revenue}
+      </span>
+    </>
+  )
+  const cls = 'flex w-full items-center gap-3 px-3.5 py-2.5 text-start sm:px-4'
+  return (
+    <li>
+      {onSelect ? (
+        <button
+          type='button'
+          onClick={onSelect}
+          className={cn(cls, 'transition-colors hover:bg-accent/60')}
+        >
+          {content}
+        </button>
+      ) : (
+        <div className={cls}>{content}</div>
+      )}
     </li>
   )
 }

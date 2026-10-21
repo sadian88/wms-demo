@@ -12,7 +12,7 @@ export const STEP_DIALOG_CLASS =
   'flex max-h-[92dvh] flex-col gap-0 overflow-hidden p-0 sm:max-w-xl'
 
 /** Botones grandes en móvil (≥ 44 px) y normales en escritorio. */
-export const BTN = 'h-11 sm:h-10'
+export const BTN = 'h-10'
 
 /**
  * Estructura común de un diálogo por pasos. Va dentro de un `DialogContent`;
@@ -109,7 +109,7 @@ export function ChipGroup<T extends string>({
               aria-checked={active}
               onClick={() => onChange(o)}
               className={cn(
-                'flex h-11 items-center gap-1.5 rounded-lg border px-4 text-sm font-medium transition-colors sm:h-10',
+                'flex h-10 items-center gap-1.5 rounded-lg border px-4 text-sm font-medium transition-colors sm:h-10',
                 active
                   ? 'border-primary bg-info-soft font-semibold text-info-ink'
                   : 'bg-card text-foreground hover:bg-accent'

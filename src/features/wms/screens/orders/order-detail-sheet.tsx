@@ -338,7 +338,7 @@ function Detail({
           {showCancel && (
             <Button
               variant='outline'
-              className={cn('h-11 sm:h-10', DANGER_OUTLINE)}
+              className={cn('h-10', DANGER_OUTLINE)}
               onClick={() => onCancel(order.id)}
             >
               Cancelar pedido
@@ -347,22 +347,19 @@ function Detail({
           {showVoid && (
             <Button
               variant='outline'
-              className={cn('h-11 sm:h-10', DANGER_OUTLINE)}
+              className={cn('h-10', DANGER_OUTLINE)}
               onClick={() => onVoid(order.id)}
             >
               Anular factura
             </Button>
           )}
           {showDeliver && (
-            <Button className='h-11 sm:h-10' onClick={onGoToPickup}>
+            <Button className='h-10' onClick={onGoToPickup}>
               Ir a entregar
             </Button>
           )}
           {showInvoice && (
-            <Button
-              className='h-11 sm:h-10'
-              onClick={() => onInvoice(order.id)}
-            >
+            <Button className='h-10' onClick={() => onInvoice(order.id)}>
               Facturar
             </Button>
           )}

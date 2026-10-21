@@ -242,7 +242,7 @@ export function PartidaDetailDrawer({
           {/* Detalle bajo demanda */}
           <div className='divide-y rounded-xl border'>
             <details className='group'>
-              <summary className='flex min-h-11 cursor-pointer list-none items-center justify-between gap-2 px-4 text-sm font-medium'>
+              <summary className='flex min-h-10 cursor-pointer list-none items-center justify-between gap-2 px-4 text-sm font-medium'>
                 <span>
                   Pedidos que reservan esta partida ({reservingOrders.length})
                 </span>
@@ -290,7 +290,7 @@ export function PartidaDetailDrawer({
             </details>
 
             <details className='group'>
-              <summary className='flex min-h-11 cursor-pointer list-none items-center justify-between gap-2 px-4 text-sm font-medium'>
+              <summary className='flex min-h-10 cursor-pointer list-none items-center justify-between gap-2 px-4 text-sm font-medium'>
                 <span>
                   Movimientos de la partida ({partidaMovements.length})
                 </span>
@@ -345,7 +345,7 @@ export function PartidaDetailDrawer({
                   key={a.slug}
                   type='button'
                   variant='outline'
-                  className='h-11 sm:h-9'
+                  className='h-10'
                   onClick={() => go(a.slug)}
                 >
                   {a.label}

@@ -12,9 +12,11 @@ import {
   PackageCheck,
   Plus,
   Receipt as ReceiptIcon,
+  Search,
   SearchX,
   XCircle,
 } from 'lucide-react'
+import { cn } from '@/lib/utils'
 import { useWms } from '@/context/wms-provider'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -173,7 +175,7 @@ export function PickupCounterScreen() {
   }
 
   return (
-    <div className='mx-auto w-full max-w-2xl space-y-5'>
+    <div className='w-full space-y-4'>
       <div ref={topRef} className='scroll-mt-20' />
       <PageHeader title='Entrega en bodega' />
 
@@ -229,7 +231,7 @@ export function PickupCounterScreen() {
         </>
       )}
 
-      <TodayDeliveries />
+      {(receipt || currentStep !== 0) && <TodayDeliveries />}
     </div>
   )
 }
@@ -339,10 +341,10 @@ function InvoiceStep({
   const visible = showAll ? pending : pending.slice(0, 8)
 
   return (
-    <div className='space-y-5'>
+    <div className='grid grid-cols-1 items-start gap-4 lg:grid-cols-[minmax(0,26rem)_minmax(0,1fr)] lg:grid-rows-[auto_1fr]'>
       {canAct && (
         <form
-          className='space-y-3'
+          className='space-y-3 rounded-xl border bg-card p-4 sm:p-5 lg:col-start-1 lg:row-start-1'
           onSubmit={(e) => {
             e.preventDefault()
             search()
@@ -367,9 +369,10 @@ function InvoiceStep({
                 spellCheck={false}
                 enterKeyHint='search'
                 placeholder='Ej. FV-10447'
-                className='h-14 flex-1 px-4 text-xl font-semibold tracking-wide md:text-xl'
+                className='h-10 flex-1 tracking-wide'
               />
-              <Button type='submit' className='h-14 px-6 text-base'>
+              <Button type='submit' className='h-10 px-5'>
+                <Search className='size-4' />
                 Buscar
               </Button>
             </div>
@@ -425,6 +428,7 @@ function InvoiceStep({
 
       <Section
         flush
+        className='lg:col-start-2 lg:row-span-2 lg:row-start-1'
         title='Por entregar hoy'
         action={
           pending.length > 0 ? (
@@ -500,7 +504,7 @@ function InvoiceStep({
             <Button
               type='button'
               variant='ghost'
-              className='h-11 w-full'
+              className='h-10 w-full'
               onClick={() => setShowAll(true)}
             >
               Ver las {pending.length - visible.length} restantes
@@ -508,6 +512,8 @@ function InvoiceStep({
           </div>
         )}
       </Section>
+
+      <TodayDeliveries className='lg:col-start-1 lg:row-start-2' />
     </div>
   )
 }
@@ -519,16 +525,18 @@ function InvoiceStep({
 function InvoiceHeader({
   order,
   action,
+  className,
 }: {
   order: PickupOrder
   action?: React.ReactNode
+  className?: string
 }) {
   const { warehouses } = useWms()
   const wh =
     [...warehouses, ...INITIAL_WAREHOUSES].find((w) => w.id === order.warehouse)
       ?.name ?? order.warehouse
   return (
-    <Section>
+    <Section className={className}>
       <div className='flex items-start justify-between gap-3'>
         <div className='min-w-0'>
           <div className='text-lg font-semibold tabular-nums'>
@@ -561,12 +569,12 @@ function QtyControl({
       <Button
         type='button'
         variant='outline'
-        className='size-11'
+        className='size-10'
         aria-label={`Una menos de ${label}`}
         disabled={value <= 0}
         onClick={() => onChange(clampQty(value - 1, max))}
       >
-        <Minus className='size-5' />
+        <Minus className='size-4' />
       </Button>
       <Input
         value={String(value)}
@@ -577,26 +585,37 @@ function QtyControl({
         inputMode='numeric'
         autoComplete='off'
         aria-label={`Cantidad a entregar de ${label}`}
-        className='h-11 w-20 text-center text-lg font-semibold tabular-nums md:text-lg'
+        className='h-10 w-16 text-center font-semibold tabular-nums'
       />
       <Button
         type='button'
         variant='outline'
-        className='size-11'
+        className='size-10'
         aria-label={`Una más de ${label}`}
         disabled={value >= max}
         onClick={() => onChange(clampQty(value + 1, max))}
       >
-        <Plus className='size-5' />
+        <Plus className='size-4' />
       </Button>
     </div>
   )
 }
 
 /** Barra fija al pie del flujo con el resumen y la acción principal. */
-function StickyBar({ children }: { children: React.ReactNode }) {
+function StickyBar({
+  children,
+  className,
+}: {
+  children: React.ReactNode
+  className?: string
+}) {
   return (
-    <div className='sticky bottom-0 z-10 -mx-4 space-y-2 border-t bg-background px-4 py-3 sm:bottom-3 sm:mx-0 sm:rounded-xl sm:border sm:bg-card sm:px-5'>
+    <div
+      className={cn(
+        'sticky bottom-0 z-10 -mx-4 space-y-2 border-t bg-background px-4 py-3 sm:bottom-3 sm:mx-0 sm:rounded-xl sm:border sm:bg-card sm:px-5 lg:top-20 lg:bottom-auto',
+        className
+      )}
+    >
       {children}
     </div>
   )
@@ -630,14 +649,15 @@ function QuantitiesStep({
   const allSelected = rows.every((r) => r.qty === r.pending)
 
   return (
-    <div className='space-y-4'>
+    <div className='grid grid-cols-1 items-start gap-4 lg:grid-cols-[minmax(0,1fr)_22rem] lg:grid-rows-[auto_1fr]'>
       <InvoiceHeader
+        className='lg:col-start-2 lg:row-start-1'
         order={order}
         action={
           <Button
             type='button'
             variant='ghost'
-            className='-me-2 h-11 shrink-0'
+            className='-me-2 h-10 shrink-0'
             onClick={onBack}
           >
             Cambiar
@@ -647,12 +667,13 @@ function QuantitiesStep({
 
       <Section
         flush
+        className='lg:col-start-1 lg:row-span-2 lg:row-start-1'
         title='Qué se entrega'
         action={
           <Button
             type='button'
             variant='outline'
-            className='h-11'
+            className='h-10'
             disabled={allSelected}
             onClick={() =>
               onChange(
@@ -693,7 +714,7 @@ function QuantitiesStep({
                       <Button
                         type='button'
                         variant='outline'
-                        className='ms-auto h-11'
+                        className='ms-auto h-10'
                         disabled={qty === pending}
                         onClick={() => set(line.sku, pending)}
                       >
@@ -713,7 +734,7 @@ function QuantitiesStep({
         </ul>
       </Section>
 
-      <StickyBar>
+      <StickyBar className='lg:col-start-2 lg:row-start-2'>
         <div className='flex items-end justify-between gap-3'>
           <div>
             <div className='text-sm text-muted-foreground'>Vas a entregar</div>
@@ -739,7 +760,7 @@ function QuantitiesStep({
         )}
         <Button
           type='button'
-          className='h-12 w-full text-base'
+          className='h-10 w-full'
           disabled={units === 0}
           onClick={onNext}
         >
@@ -823,18 +844,21 @@ function ReceiverStep({
   }
 
   return (
-    <div className='space-y-4'>
-      <InvoiceHeader order={order} />
+    <div className='grid grid-cols-1 items-start gap-4 lg:grid-cols-[minmax(0,1fr)_22rem] lg:grid-rows-[auto_auto_1fr]'>
+      <InvoiceHeader className='lg:col-start-2 lg:row-start-1' order={order} />
 
-      <Section title='Quién recibe'>
-        <div className='space-y-4'>
+      <Section
+        title='Quién recibe'
+        className='lg:col-start-1 lg:row-span-3 lg:row-start-1'
+      >
+        <div className='grid grid-cols-1 gap-4 sm:grid-cols-2'>
           <Field label='Nombre de quien retira' required>
             <Input
               value={name}
               onChange={(e) => setName(e.target.value)}
               autoComplete='off'
               autoCapitalize='words'
-              className='h-12 text-base md:text-base'
+              className='h-10'
             />
           </Field>
           <Field label='Cédula' required>
@@ -843,21 +867,22 @@ function ReceiverStep({
               onChange={(e) => setRut(e.target.value)}
               inputMode='numeric'
               autoComplete='off'
-              className='h-12 text-base md:text-base'
+              className='h-10'
             />
           </Field>
           <Field
             label='Número de remisión'
             hint='Ya viene asignado. Cámbialo solo si usas otro consecutivo.'
+            className='sm:col-span-2'
           >
             <Input
               value={remission}
               onChange={(e) => setRemission(e.target.value)}
               autoComplete='off'
-              className='h-12 text-base md:text-base'
+              className='h-10'
             />
           </Field>
-          <div className='space-y-1.5'>
+          <div className='space-y-1.5 sm:col-span-2'>
             <div className='text-sm font-medium'>
               Foto de la entrega o de la cédula{' '}
               <span className='font-normal text-muted-foreground'>
@@ -874,7 +899,11 @@ function ReceiverStep({
         </div>
       </Section>
 
-      <Section title='Lo que vas a confirmar' flush>
+      <Section
+        title='Lo que vas a confirmar'
+        flush
+        className='lg:col-start-2 lg:row-start-2'
+      >
         <ul className='divide-y'>
           {rows.map(({ line, sku, qty }) => (
             <li
@@ -903,7 +932,7 @@ function ReceiverStep({
         </dl>
       </Section>
 
-      <StickyBar>
+      <StickyBar className='lg:col-start-2 lg:row-start-3'>
         <p className='text-sm text-muted-foreground'>
           Entrega a nombre de{' '}
           <span className='font-medium text-foreground'>{userName}</span>
@@ -913,7 +942,7 @@ function ReceiverStep({
           <Button
             type='button'
             variant='outline'
-            className='h-12 px-4'
+            className='h-10 px-4'
             onClick={onBack}
           >
             <ArrowLeft className='size-4' />
@@ -921,7 +950,7 @@ function ReceiverStep({
           </Button>
           <Button
             type='button'
-            className='h-12 flex-1 text-base'
+            className='h-10 flex-1'
             disabled={!!missing}
             onClick={submit}
           >
@@ -950,7 +979,7 @@ function SuccessView({
 }) {
   const partial = receipt.pendingUnits > 0
   return (
-    <div className='space-y-4'>
+    <div className='grid grid-cols-1 items-start gap-4 lg:grid-cols-2'>
       <Section>
         <div className='flex flex-col items-center gap-2 py-2 text-center'>
           <div className='flex size-14 items-center justify-center rounded-full bg-success-soft text-success-ink'>
@@ -978,37 +1007,39 @@ function SuccessView({
         </dl>
       </Section>
 
-      {partial ? (
-        <Callout
-          tone='warning'
-          icon={AlertTriangle}
-          title={`Queda pendiente: ${nf(receipt.pendingUnits)} ${receipt.pendingUnits === 1 ? 'unidad' : 'unidades'}`}
-        >
-          Por entregar de esta factura: {cop(receipt.pendingCOP)}.
-        </Callout>
-      ) : (
-        <Callout
-          tone='success'
-          icon={CheckCircle2}
-          title='Factura entregada completa'
-        >
-          No queda nada pendiente de esta factura.
-        </Callout>
-      )}
-
-      <div className='flex flex-col gap-2 sm:flex-row-reverse'>
-        <Button className='h-12 flex-1 text-base' onClick={onAgain}>
-          Entregar otra factura
-        </Button>
-        {partial && canSeeBalance && (
-          <Button
-            variant='outline'
-            className='h-12 flex-1 text-base'
-            onClick={onBalance}
+      <div className='space-y-4'>
+        {partial ? (
+          <Callout
+            tone='warning'
+            icon={AlertTriangle}
+            title={`Queda pendiente: ${nf(receipt.pendingUnits)} ${receipt.pendingUnits === 1 ? 'unidad' : 'unidades'}`}
           >
-            Ver saldo
-          </Button>
+            Por entregar de esta factura: {cop(receipt.pendingCOP)}.
+          </Callout>
+        ) : (
+          <Callout
+            tone='success'
+            icon={CheckCircle2}
+            title='Factura entregada completa'
+          >
+            No queda nada pendiente de esta factura.
+          </Callout>
         )}
+
+        <div className='flex flex-col gap-2 sm:flex-row-reverse'>
+          <Button className='h-10 flex-1' onClick={onAgain}>
+            Entregar otra factura
+          </Button>
+          {partial && canSeeBalance && (
+            <Button
+              variant='outline'
+              className='h-10 flex-1'
+              onClick={onBalance}
+            >
+              Ver saldo
+            </Button>
+          )}
+        </div>
       </div>
     </div>
   )
@@ -1018,7 +1049,7 @@ function SuccessView({
 /*  Historial del día                                                          */
 /* -------------------------------------------------------------------------- */
 
-function TodayDeliveries() {
+function TodayDeliveries({ className }: { className?: string }) {
   const { orders, matchesScope } = useWms()
   const rows = orders
     .filter((o) => matchesScope(o.warehouse))
@@ -1029,53 +1060,65 @@ function TodayDeliveries() {
     )
     .sort((a, b) => b.pickup.ts.localeCompare(a.pickup.ts))
 
+  const list =
+    rows.length === 0 ? (
+      <p className='px-4 py-6 text-center text-sm text-muted-foreground sm:px-5'>
+        Todavía no se ha registrado ninguna entrega hoy.
+      </p>
+    ) : (
+      <ul className='divide-y'>
+        {rows.map(({ order, pickup }) => {
+          const units = pickup.items.reduce((s, i) => s + i.qty, 0)
+          return (
+            <li
+              key={`${order.id}-${pickup.docRef}-${pickup.ts}`}
+              className='space-y-1 px-4 py-3 sm:px-5'
+            >
+              <div className='flex items-baseline justify-between gap-3'>
+                <span className='font-semibold tabular-nums'>
+                  {order.invoice?.number ?? order.id}
+                </span>
+                <span className='text-sm text-muted-foreground tabular-nums'>
+                  {pickup.ts.slice(11, 16)}
+                </span>
+              </div>
+              <div className='truncate text-sm'>{order.customer}</div>
+              <div className='text-sm text-muted-foreground'>
+                {pickup.docRef} · {nf(units)}{' '}
+                {units === 1 ? 'unidad' : 'unidades'} · Entregó{' '}
+                {pickup.deliveredBy ?? 'sin registro'} · Recibió{' '}
+                {pickup.receivedByName}
+              </div>
+              <PhotoStrip photos={pickup.photos} size='sm' />
+            </li>
+          )
+        })}
+      </ul>
+    )
+
+  const title = (
+    <>
+      Entregas de hoy{' '}
+      <span className='font-normal text-muted-foreground tabular-nums'>
+        ({rows.length})
+      </span>
+    </>
+  )
+
   return (
-    <details className='group rounded-xl border bg-card'>
-      <summary className='flex min-h-12 cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-base font-semibold sm:px-5 [&::-webkit-details-marker]:hidden'>
-        <span>
-          Entregas de hoy{' '}
-          <span className='font-normal text-muted-foreground tabular-nums'>
-            ({rows.length})
-          </span>
-        </span>
-        <ChevronRight className='size-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-90' />
-      </summary>
-      <div className='border-t'>
-        {rows.length === 0 ? (
-          <p className='px-4 py-6 text-center text-sm text-muted-foreground sm:px-5'>
-            Todavía no se ha registrado ninguna entrega hoy.
-          </p>
-        ) : (
-          <ul className='divide-y'>
-            {rows.map(({ order, pickup }) => {
-              const units = pickup.items.reduce((s, i) => s + i.qty, 0)
-              return (
-                <li
-                  key={`${order.id}-${pickup.docRef}-${pickup.ts}`}
-                  className='space-y-1 px-4 py-3 sm:px-5'
-                >
-                  <div className='flex items-baseline justify-between gap-3'>
-                    <span className='font-semibold tabular-nums'>
-                      {order.invoice?.number ?? order.id}
-                    </span>
-                    <span className='text-sm text-muted-foreground tabular-nums'>
-                      {pickup.ts.slice(11, 16)}
-                    </span>
-                  </div>
-                  <div className='truncate text-sm'>{order.customer}</div>
-                  <div className='text-sm text-muted-foreground'>
-                    {pickup.docRef} · {nf(units)}{' '}
-                    {units === 1 ? 'unidad' : 'unidades'} · Entregó{' '}
-                    {pickup.deliveredBy ?? 'sin registro'} · Recibió{' '}
-                    {pickup.receivedByName}
-                  </div>
-                  <PhotoStrip photos={pickup.photos} size='sm' />
-                </li>
-              )
-            })}
-          </ul>
-        )}
-      </div>
-    </details>
+    <>
+      <Section title={title} flush className={cn('hidden lg:block', className)}>
+        {list}
+      </Section>
+      <details
+        className={cn('group rounded-xl border bg-card lg:hidden', className)}
+      >
+        <summary className='flex min-h-10 cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-base font-semibold sm:px-5 [&::-webkit-details-marker]:hidden'>
+          <span>{title}</span>
+          <ChevronRight className='size-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-90' />
+        </summary>
+        <div className='border-t'>{list}</div>
+      </details>
+    </>
   )
 }

@@ -38,6 +38,10 @@
   --info-soft: oklch(0.96 0.02 260);
   --info-ink: oklch(0.4 0.16 260);
 
+  /* Series de gráficos (validadas en claro y oscuro): facturado / entregado. */
+  --viz-1: oklch(0.48 0.17 260);
+  --viz-2: oklch(0.6 0.13 180);
+
   --sidebar: oklch(1 0 0);
   --sidebar-foreground: var(--foreground);
   --sidebar-primary: var(--primary);
@@ -85,6 +89,8 @@
   --info: oklch(0.68 0.15 260);
   --info-soft: oklch(0.29 0.06 260);
   --info-ink: oklch(0.86 0.08 260);
+  --viz-1: oklch(0.65 0.15 260);
+  --viz-2: oklch(0.66 0.12 180);
   --sidebar: oklch(0.14 0.04 259.21);
 }
 
@@ -131,6 +137,8 @@
   --color-info: var(--info);
   --color-info-soft: var(--info-soft);
   --color-info-ink: var(--info-ink);
+  --color-viz-1: var(--viz-1);
+  --color-viz-2: var(--viz-2);
   --color-sidebar: var(--sidebar);
   --color-sidebar-foreground: var(--sidebar-foreground);
   --color-sidebar-primary: var(--sidebar-primary);

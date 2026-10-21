@@ -116,7 +116,7 @@ export function ClaimsScreen() {
           canAct ? (
             <Button
               onClick={() => setReturnOpen(true)}
-              className='h-11 gap-2 sm:h-10'
+              className='h-10 gap-2 sm:h-10'
             >
               <Plus />
               Registrar devolución de cliente
@@ -465,7 +465,7 @@ function CustomerReturnDialog({ onClose }: { onClose: () => void }) {
               value={customer}
               onChange={(e) => setCustomer(e.target.value)}
               placeholder='Nombre del cliente u obra'
-              className='h-11'
+              className='h-10'
             />
           </Field>
           <Field
@@ -477,14 +477,14 @@ function CustomerReturnDialog({ onClose }: { onClose: () => void }) {
               value={docRef}
               onChange={(e) => setDocRef(e.target.value)}
               placeholder='Ej. FV-10452'
-              className='h-11 font-mono'
+              className='h-10 font-mono'
             />
           </Field>
           <Field label='Producto' required error={showErr('partida')}>
             <select
               value={partidaId}
               onChange={(e) => setPartidaId(e.target.value)}
-              className={`${SELECT_CLASS} h-11`}
+              className={`${SELECT_CLASS} h-10`}
             >
               <option value=''>Elige un producto…</option>
               {options.map((p) => (
@@ -507,7 +507,7 @@ function CustomerReturnDialog({ onClose }: { onClose: () => void }) {
               placeholder='0'
               value={qty}
               onChange={(e) => setQty(e.target.value.replace(/\D/g, ''))}
-              className='h-11 tabular-nums'
+              className='h-10 tabular-nums'
             />
           </Field>
           <Field label='Motivo' required error={showErr('reason')}>
@@ -515,19 +515,19 @@ function CustomerReturnDialog({ onClose }: { onClose: () => void }) {
               value={reason}
               onChange={(e) => setReason(e.target.value)}
               placeholder='Ej. Sobrante de obra en cajas selladas'
-              className='h-11'
+              className='h-10'
             />
           </Field>
           <DialogFooter className='pt-2'>
             <Button
               type='button'
               variant='outline'
-              className='h-11 sm:h-10'
+              className='h-10'
               onClick={onClose}
             >
               Cancelar
             </Button>
-            <Button type='submit' className='h-11 sm:h-10'>
+            <Button type='submit' className='h-10'>
               Registrar devolución
             </Button>
           </DialogFooter>

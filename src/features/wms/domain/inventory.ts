@@ -1,5 +1,9 @@
 export type StockState =
-  'disponible' | 'reservado' | 'danado' | 'reclamo' | 'transito'
+  | 'disponible'
+  | 'reservado'
+  | 'danado'
+  | 'reclamo'
+  | 'transito'
 
 export type RoleCode = 'ADM' | 'JB' | 'OPE' | 'GER' | 'ASE' | 'CAJ'
 
@@ -144,7 +148,12 @@ export interface OrderLine {
 }
 
 export type PaymentMethod =
-  'Efectivo' | 'Transferencia' | 'Tarjeta' | 'Crédito' | 'Cheque' | 'Mixto'
+  | 'Efectivo'
+  | 'Transferencia'
+  | 'Tarjeta'
+  | 'Crédito'
+  | 'Cheque'
+  | 'Mixto'
 
 export const PAYMENT_METHODS: PaymentMethod[] = [
   'Efectivo',
@@ -171,7 +180,11 @@ export interface InvoiceInfo {
 }
 
 export type PickupOrderStatus =
-  'Reservado' | 'Preparado' | 'Retiro parcial' | 'Entregado' | 'Cancelado'
+  | 'Reservado'
+  | 'Preparado'
+  | 'Retiro parcial'
+  | 'Entregado'
+  | 'Cancelado'
 
 export interface PickupRecord {
   ts: string
